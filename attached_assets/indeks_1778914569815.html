@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Auckland WebGIS – New Zealand</title>
+<meta name="description" content="Interactive WebGIS map of Auckland, New Zealand – explore OSM features including amenities, transport, tourism and more.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Inter',sans-serif;background:#0f1117;color:#e2e8f0;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+
+/* HEADER */
+#header{display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:56px;background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);border-bottom:1px solid rgba(255,255,255,0.08);flex-shrink:0;z-index:1000;}
+#header h1{font-size:1.1rem;font-weight:700;background:linear-gradient(90deg,#38bdf8,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+#header .subtitle{font-size:.75rem;color:#94a3b8;margin-left:8px;}
+#stats-bar{display:flex;gap:16px;align-items:center;}
+.stat-badge{background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:4px 12px;font-size:.72rem;color:#94a3b8;}
+.stat-badge span{color:#38bdf8;font-weight:600;}
+
+/* MAIN LAYOUT */
+#app{display:flex;flex:1;overflow:hidden;}
+
+/* SIDEBAR */
+#sidebar{width:320px;background:#13171f;border-right:1px solid rgba(255,255,255,0.07);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0;transition:width .3s;}
+#sidebar.collapsed{width:0;}
+#sidebar-header{padding:14px 16px 10px;border-bottom:1px solid rgba(255,255,255,0.07);}
+#sidebar-header h2{font-size:.85rem;font-weight:600;color:#e2e8f0;margin-bottom:8px;}
+#search-box{width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:.82rem;outline:none;transition:border-color .2s;}
+#search-box:focus{border-color:#38bdf8;}
+#search-box::placeholder{color:#475569;}
+
+/* FILTER CHIPS */
+#filter-section{padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.07);}
+#filter-section label{font-size:.72rem;color:#64748b;font-weight:500;display:block;margin-bottom:6px;}
+#filter-chips{display:flex;flex-wrap:wrap;gap:5px;}
+.chip{padding:3px 10px;border-radius:20px;font-size:.7rem;cursor:pointer;border:1px solid transparent;transition:all .2s;white-space:nowrap;}
+.chip.active{color:#fff;border-color:transparent;}
+.chip:not(.active){background:rgba(255,255,255,0.05);border-color:rgba(255,255,255,0.1);color:#94a3b8;}
+.chip:hover:not(.active){border-color:#38bdf8;color:#38bdf8;}
+
+/* FEATURE LIST */
+#feature-list-wrap{flex:1;overflow-y:auto;padding:8px;}
+#feature-list-wrap::-webkit-scrollbar{width:4px;}
+#feature-list-wrap::-webkit-scrollbar-thumb{background:#334155;border-radius:2px;}
+.feature-item{padding:10px 12px;border-radius:8px;cursor:pointer;margin-bottom:4px;border:1px solid transparent;transition:all .2s;}
+.feature-item:hover{background:rgba(56,189,248,0.08);border-color:rgba(56,189,248,0.2);}
+.feature-item.active{background:rgba(56,189,248,0.12);border-color:#38bdf8;}
+.feature-item .fi-name{font-size:.8rem;font-weight:500;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.feature-item .fi-type{font-size:.68rem;color:#64748b;margin-top:2px;}
+.fi-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;flex-shrink:0;}
+
+/* MAP */
+#map{position:absolute;inset:0;z-index:1;}
+
+/* TOGGLE BTN */
+#toggle-sidebar{position:absolute;left:320px;top:50%;transform:translateY(-50%);z-index:1001;background:#13171f;border:1px solid rgba(255,255,255,0.1);border-left:none;color:#94a3b8;cursor:pointer;padding:10px 4px;border-radius:0 6px 6px 0;transition:left .3s,color .2s;font-size:.9rem;}
+#toggle-sidebar:hover{color:#38bdf8;}
+#toggle-sidebar.collapsed{left:0;}
+
+/* INFO PANEL */
+#info-panel{position:absolute;bottom:20px;right:20px;width:280px;background:rgba(15,17,23,0.95);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:16px;z-index:800;display:none;animation:fadeUp .3s ease;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+#info-panel .ip-title{font-size:.9rem;font-weight:600;color:#38bdf8;margin-bottom:10px;}
+.ip-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:.75rem;}
+.ip-row:last-child{border-bottom:none;}
+.ip-key{color:#64748b;}
+.ip-val{color:#e2e8f0;font-weight:500;text-align:right;max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#info-close{position:absolute;top:10px;right:12px;background:none;border:none;color:#64748b;cursor:pointer;font-size:1rem;}
+#info-close:hover{color:#f87171;}
+
+/* LOADING */
+#loader{position:absolute;inset:0;background:rgba(15,17,23,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2000;gap:14px;}
+.loader-ring{width:48px;height:48px;border:3px solid rgba(56,189,248,0.2);border-top-color:#38bdf8;border-radius:50%;animation:spin 1s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+#load-text{font-size:.85rem;color:#94a3b8;}
+#load-progress{font-size:.7rem;color:#38bdf8;margin-top:4px;}
+
+/* LEGEND */
+#legend{position:absolute;bottom:20px;left:20px;background:rgba(15,17,23,0.9);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;z-index:800;min-width:130px;}
+#legend h4{font-size:.72rem;color:#64748b;font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em;}
+.leg-item{display:flex;align-items:center;gap:7px;font-size:.72rem;color:#94a3b8;margin-bottom:5px;}
+.leg-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+
+/* MAP CONTROLS STYLE */
+.leaflet-control-zoom a{background:#13171f!important;color:#94a3b8!important;border-color:rgba(255,255,255,0.1)!important;}
+.leaflet-control-zoom a:hover{color:#38bdf8!important;}
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div style="display:flex;align-items:center;">
+    <h1>🗺 Auckland WebGIS</h1>
+    <span class="subtitle">New Zealand · OpenStreetMap Data</span>
+  </div>
+  <div id="stats-bar">
+    <div class="stat-badge">Features: <span id="total-count">—</span></div>
+    <div class="stat-badge">Shown: <span id="shown-count">—</span></div>
+    <div class="stat-badge">📍 <span id="coord-display">-36.86° S, 174.76° E</span></div>
+  </div>
+</div>
+
+<div id="app">
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <h2>Feature Explorer</h2>
+      <input type="text" id="search-box" placeholder="Search features…">
+    </div>
+    <div id="filter-section">
+      <label>FILTER BY CATEGORY</label>
+      <div id="filter-chips"></div>
+    </div>
+    <div id="feature-list-wrap">
+      <div id="feature-list"></div>
+    </div>
+  </div>
+
+  <div style="position:relative;flex:1;">
+    <div id="map"></div>
+    <button id="toggle-sidebar" title="Toggle sidebar">◀</button>
+
+    <div id="info-panel">
+      <button id="info-close">✕</button>
+      <div class="ip-title" id="ip-title">Feature Info</div>
+      <div id="ip-body"></div>
+    </div>
+
+    <div id="legend">
+      <h4>Legend</h4>
+      <div class="leg-item"><div class="leg-dot" style="background:#f97316;"></div>Amenity</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#38bdf8;"></div>Highway</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#a78bfa;"></div>Tourism</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#34d399;"></div>Shop</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#fb7185;"></div>Railway</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#fbbf24;"></div>Building</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#94a3b8;"></div>Other</div>
+    </div>
+
+    <div id="loader">
+      <div class="loader-ring"></div>
+      <div id="load-text">Loading Auckland GeoJSON…</div>
+      <div id="load-progress">Please wait, this may take a moment</div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script>
+// ── CONFIG ────────────────────────────────────────────────────────────
+const GEOJSON_FILE = 'auckland_processed.geojson';
+const AUCKLAND_CENTER = [-36.8659, 174.7627];
+const MAX_SIDEBAR_ITEMS = 300;
+
+const CATEGORIES = {
+  amenity:  { color:'#f97316', label:'Amenity' },
+  highway:  { color:'#38bdf8', label:'Highway' },
+  tourism:  { color:'#a78bfa', label:'Tourism' },
+  shop:     { color:'#34d399', label:'Shop' },
+  railway:  { color:'#fb7185', label:'Railway' },
+  building: { color:'#fbbf24', label:'Building' },
+  other:    { color:'#94a3b8', label:'Other' }
+};
+
+// ── MAP INIT ──────────────────────────────────────────────────────────
+const map = L.map('map',{center:AUCKLAND_CENTER,zoom:13,zoomControl:true});
+
+const baseLayers = {
+  'Street':   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OSM contributors',maxZoom:19}),
+  'Dark':     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; CartoDB &copy; OSM',maxZoom:19,subdomains:'abcd'}),
+  'Satellite':L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'&copy; Esri',maxZoom:19})
+};
+baseLayers['Street'].addTo(map);
+L.control.layers(baseLayers,null,{position:'topright'}).addTo(map);
+L.control.scale({imperial:false}).addTo(map);
+
+map.on('mousemove',e=>{
+  document.getElementById('coord-display').textContent=`${e.latlng.lat.toFixed(5)}°, ${e.latlng.lng.toFixed(5)}°`;
+});
+
+// ── CLUSTER GROUP ─────────────────────────────────────────────────────
+const clusters = L.markerClusterGroup({
+  maxClusterRadius:50,
+  spiderfyOnMaxZoom:true,
+  showCoverageOnHover:false,
+  zoomToBoundsOnClick:true,
+  iconCreateFunction(cluster){
+    const c=cluster.getChildCount();
+    const sz=c>500?50:c>100?42:36;
+    return L.divIcon({html:`<div style="width:${sz}px;height:${sz}px;border-radius:50%;background:rgba(56,189,248,0.85);display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;color:#fff;border:2px solid #38bdf8;box-shadow:0 0 12px rgba(56,189,248,0.4);">${c}</div>`,className:'',iconSize:[sz,sz]});
+  }
+});
+map.addLayer(clusters);
+
+// ── BOUNDARY LAYER ────────────────────────────────────────────────────
+const boundaryCoords=[[[174.74070525703962,-36.83733650964866],[174.7006051635743,-36.85074436180028],[174.69016814347364,-36.887658757616045],[174.74043060302742,-36.91445447018938],[174.78108000451707,-36.9276292325257],[174.81651093786587,-36.9120388367817],[174.82996917305522,-36.926970541771844],[174.84672334020965,-36.92038338823252],[174.8431527751871,-36.903913014768385],[174.85853365132593,-36.887658757616045],[174.85111784631394,-36.87096160007621],[174.83436372106902,-36.86393013952129],[174.82255340995275,-36.86590779404191],[174.79124239156027,-36.846568393253754],[174.78767182653775,-36.8388752287206],[174.74070525703962,-36.83733650964866]]];
+const boundary=L.geoJSON({type:'Polygon',coordinates:boundaryCoords},{style:{color:'#38bdf8',weight:2,fillColor:'#38bdf8',fillOpacity:0.04,dashArray:'6,4'}}).addTo(map);
+
+// ── STATE ─────────────────────────────────────────────────────────────
+let allFeatures=[];
+let activeFilter='all';
+let searchQuery='';
+let activeMarkerMap={};
+
+function getCategory(props){
+  if(props.amenity) return 'amenity';
+  if(props.highway) return 'highway';
+  if(props.tourism) return 'tourism';
+  if(props.shop)    return 'shop';
+  if(props.railway) return 'railway';
+  if(props.building)return 'building';
+  return 'other';
+}
+
+function getColor(cat){ return CATEGORIES[cat]?.color||'#94a3b8'; }
+
+function makeIcon(cat){
+  const c=getColor(cat);
+  const emojis={amenity:'🏪',highway:'🛣',tourism:'🏛',shop:'🛍',railway:'🚉',building:'🏢',other:'📍'};
+  return L.divIcon({
+    html:`<div style="width:24px;height:24px;border-radius:50%;background:${c};display:flex;align-items:center;justify-content:center;font-size:11px;border:2px solid rgba(255,255,255,0.4);box-shadow:0 2px 6px rgba(0,0,0,0.5);">${emojis[cat]||'📍'}</div>`,
+    className:'',iconSize:[24,24],iconAnchor:[12,12]
+  });
+}
+
+function getFeatureName(props){
+  return props.name||(props.amenity&&`Amenity: ${props.amenity}`)
+    ||(props.shop&&`Shop: ${props.shop}`)
+    ||(props.tourism&&`Tourism: ${props.tourism}`)
+    ||(props.highway&&`Highway: ${props.highway}`)
+    ||(props.railway&&`Railway: ${props.railway}`)
+    ||(props.building&&`Building: ${props.building}`)
+    ||`OSM #${props.osm_id||'?'}`;
+}
+
+function getFeatureSubtype(props){
+  const cat=getCategory(props);
+  const val=props[cat];
+  return `${CATEGORIES[cat]?.label||'Other'}${val&&val!==true?' · '+val:''}`;
+}
+
+// ── LOAD GEOJSON (streaming) ──────────────────────────────────────────
+async function loadGeoJSON(){
+  try{
+    const resp=await fetch(GEOJSON_FILE);
+    if(!resp.ok) throw new Error('File not found');
+    const text=await resp.text();
+    document.getElementById('load-progress').textContent='Parsing features…';
+    const data=JSON.parse(text);
+    processFeatures(data.features||[]);
+  }catch(e){
+    document.getElementById('load-text').textContent='⚠ Error loading GeoJSON';
+    document.getElementById('load-progress').textContent=e.message;
+    console.error(e);
+  }
+}
+
+function processFeatures(features){
+  document.getElementById('load-progress').textContent=`Processing ${features.length.toLocaleString()} features…`;
+
+  // Only handle Point features for markers (lines/polygons shown differently)
+  const points=features.filter(f=>f.geometry?.type==='Point');
+  const polys=features.filter(f=>f.geometry?.type==='Polygon'||f.geometry?.type==='MultiPolygon');
+  const lines=features.filter(f=>f.geometry?.type==='LineString'||f.geometry?.type==='MultiLineString');
+
+  allFeatures=features;
+
+  // Add polygon/line layers
+  if(polys.length){
+    L.geoJSON({type:'FeatureCollection',features:polys},{
+      style:f=>{const cat=getCategory(f.properties);return{color:getColor(cat),weight:1.5,fillOpacity:0.25,fillColor:getColor(cat)};},
+      onEachFeature:(f,layer)=>{layer.on('click',()=>showInfo(f.properties));}
+    }).addTo(map);
+  }
+  if(lines.length){
+    L.geoJSON({type:'FeatureCollection',features:lines},{
+      style:f=>{const cat=getCategory(f.properties);return{color:getColor(cat),weight:2,opacity:0.7};},
+      onEachFeature:(f,layer)=>{layer.on('click',()=>showInfo(f.properties));}
+    }).addTo(map);
+  }
+
+  // Build markers for points
+  points.forEach(f=>{
+    const [lng,lat]=f.geometry.coordinates;
+    const cat=getCategory(f.properties);
+    const marker=L.marker([lat,lng],{icon:makeIcon(cat)});
+    marker.on('click',()=>showInfo(f.properties));
+    marker._cat=cat;
+    marker._props=f.properties;
+    clusters.addLayer(marker);
+    f._marker=marker;
+  });
+
+  document.getElementById('total-count').textContent=features.length.toLocaleString();
+  document.getElementById('shown-count').textContent=points.length.toLocaleString();
+
+  buildFilterChips(features);
+  renderFeatureList(features);
+  document.getElementById('loader').style.display='none';
+  // Force Leaflet to recalculate map container size after loader is removed
+  setTimeout(()=>map.invalidateSize(),100);
+}
+
+// ── FILTER CHIPS ──────────────────────────────────────────────────────
+function buildFilterChips(features){
+  const counts={};
+  features.forEach(f=>{const c=getCategory(f.properties);counts[c]=(counts[c]||0)+1;});
+  const wrap=document.getElementById('filter-chips');
+  wrap.innerHTML='';
+
+  const allChip=document.createElement('div');
+  allChip.className='chip active';
+  allChip.style.background='#38bdf8';
+  allChip.textContent=`All (${features.length.toLocaleString()})`;
+  allChip.dataset.cat='all';
+  allChip.onclick=()=>setFilter('all');
+  wrap.appendChild(allChip);
+
+  Object.entries(counts).sort((a,b)=>b[1]-a[1]).forEach(([cat,cnt])=>{
+    const chip=document.createElement('div');
+    chip.className='chip';
+    chip.textContent=`${CATEGORIES[cat]?.label||cat} (${cnt.toLocaleString()})`;
+    chip.dataset.cat=cat;
+    chip.onclick=()=>setFilter(cat);
+    wrap.appendChild(chip);
+  });
+}
+
+function setFilter(cat){
+  activeFilter=cat;
+  document.querySelectorAll('.chip').forEach(c=>{
+    const active=c.dataset.cat===cat;
+    c.classList.toggle('active',active);
+    c.style.background=active?(cat==='all'?'#38bdf8':getColor(cat)):'';
+    c.style.color=active?'#fff':'';
+  });
+
+  // Show/hide markers
+  clusters.clearLayers();
+  const pts=allFeatures.filter(f=>f.geometry?.type==='Point');
+  const filtered=cat==='all'?pts:pts.filter(f=>getCategory(f.properties)===cat);
+  filtered.forEach(f=>{ if(f._marker) clusters.addLayer(f._marker); });
+  document.getElementById('shown-count').textContent=filtered.length.toLocaleString();
+  renderFeatureList(cat==='all'?allFeatures:allFeatures.filter(f=>getCategory(f.properties)===cat));
+}
+
+// ── FEATURE LIST ──────────────────────────────────────────────────────
+function renderFeatureList(features){
+  const q=searchQuery.toLowerCase();
+  let filtered=features;
+  if(q) filtered=features.filter(f=>{
+    const n=getFeatureName(f.properties).toLowerCase();
+    return n.includes(q);
+  });
+
+  const named=filtered.filter(f=>f.properties?.name);
+  const list=document.getElementById('feature-list');
+  list.innerHTML='';
+
+  const show=named.slice(0,MAX_SIDEBAR_ITEMS);
+  show.forEach(f=>{
+    const cat=getCategory(f.properties);
+    const div=document.createElement('div');
+    div.className='feature-item';
+    div.innerHTML=`<div class="fi-name"><span class="fi-dot" style="background:${getColor(cat)}"></span>${getFeatureName(f.properties)}</div><div class="fi-type">${getFeatureSubtype(f.properties)}</div>`;
+    div.onclick=()=>{
+      showInfo(f.properties);
+      // Fly to marker
+      if(f.geometry?.type==='Point'){
+        const [lng,lat]=f.geometry.coordinates;
+        map.flyTo([lat,lng],17,{duration:1.2});
+      }
+      document.querySelectorAll('.feature-item').forEach(el=>el.classList.remove('active'));
+      div.classList.add('active');
+    };
+    list.appendChild(div);
+  });
+
+  if(named.length>MAX_SIDEBAR_ITEMS){
+    const note=document.createElement('div');
+    note.style.cssText='text-align:center;font-size:.7rem;color:#475569;padding:8px;';
+    note.textContent=`+ ${(named.length-MAX_SIDEBAR_ITEMS).toLocaleString()} more — use filters to narrow`;
+    list.appendChild(note);
+  }
+  if(!show.length){
+    list.innerHTML='<div style="text-align:center;font-size:.78rem;color:#475569;padding:16px;">No named features found</div>';
+  }
+}
+
+// ── INFO PANEL ────────────────────────────────────────────────────────
+function showInfo(props){
+  const panel=document.getElementById('info-panel');
+  panel.style.display='block';
+  document.getElementById('ip-title').textContent=getFeatureName(props);
+
+  const keys=['amenity','highway','shop','tourism','railway','building','surface','opening_hours','operator','addr_street','addr_housenumber','parking','public_transport','osm_type','osm_id'];
+  let html='';
+  keys.forEach(k=>{
+    if(props[k]&&props[k]!==null){
+      html+=`<div class="ip-row"><span class="ip-key">${k.replace('_',' ')}</span><span class="ip-val">${props[k]}</span></div>`;
+    }
+  });
+  document.getElementById('ip-body').innerHTML=html||'<div class="ip-row"><span class="ip-key">No extra data</span></div>';
+}
+document.getElementById('info-close').onclick=()=>{ document.getElementById('info-panel').style.display='none'; };
+
+// ── SEARCH ────────────────────────────────────────────────────────────
+document.getElementById('search-box').addEventListener('input',e=>{
+  searchQuery=e.target.value;
+  const cat=activeFilter==='all'?allFeatures:allFeatures.filter(f=>getCategory(f.properties)===activeFilter);
+  renderFeatureList(cat);
+});
+
+// ── SIDEBAR TOGGLE ────────────────────────────────────────────────────
+const sidebar=document.getElementById('sidebar');
+const toggleBtn=document.getElementById('toggle-sidebar');
+toggleBtn.onclick=()=>{
+  sidebar.classList.toggle('collapsed');
+  toggleBtn.classList.toggle('collapsed');
+  toggleBtn.textContent=sidebar.classList.contains('collapsed')?'▶':'◀';
+  toggleBtn.style.left=sidebar.classList.contains('collapsed')?'0':'320px';
+};
+
+// ── START ─────────────────────────────────────────────────────────────
+loadGeoJSON();
+</script>
+</body>
+</html>
