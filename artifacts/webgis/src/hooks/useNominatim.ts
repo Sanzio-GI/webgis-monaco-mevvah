@@ -11,6 +11,10 @@ export interface NominatimResult {
   address?: Record<string, string>;
 }
 
+// Monaco bounding box: west, south, east, north
+// Nominatim viewbox format: left,top,right,bottom (min_lon, max_lat, max_lon, min_lat)
+const MONACO_VIEWBOX = '7.38,43.76,7.47,43.72';
+
 export function useNominatim() {
   const [results, setResults] = useState<NominatimResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -30,8 +34,10 @@ export function useNominatim() {
       const url = new URL('https://nominatim.openstreetmap.org/search');
       url.searchParams.set('q', query);
       url.searchParams.set('format', 'json');
-      url.searchParams.set('limit', '6');
+      url.searchParams.set('limit', '8');
       url.searchParams.set('addressdetails', '1');
+      url.searchParams.set('viewbox', MONACO_VIEWBOX);
+      url.searchParams.set('bounded', '1');
 
       const res = await fetch(url.toString(), {
         signal: abortRef.current.signal,
