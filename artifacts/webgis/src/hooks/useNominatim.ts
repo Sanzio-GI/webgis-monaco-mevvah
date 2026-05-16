@@ -21,7 +21,7 @@ export function useNominatim() {
   const abortRef = useRef<AbortController | null>(null);
 
   const search = useCallback(async (query: string) => {
-    if (!query.trim() || query.length < 2) {
+    if (!query.trim() || query.length < 1) {
       setResults([]);
       return;
     }

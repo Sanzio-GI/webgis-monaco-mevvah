@@ -138,6 +138,13 @@ body {
 .sug-icon { font-size: 15px; flex-shrink: 0; margin-top: 2px; }
 .sug-main { font-size: 13px; color: #e0e6f0; font-weight: 500; }
 .sug-sub  { font-size: 11px; color: #64748b; margin-top: 1px; }
+.sug-section-label {
+  padding: 6px 14px 4px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.6px;
+  color: #4a5568; text-transform: uppercase;
+  background: rgba(0,0,0,0.15);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
 .sug-loading { text-align: center; padding: 12px; font-size: 12px; color: #64748b; }
 .sug-powered {
   display: flex; align-items: center; justify-content: flex-end; gap: 4px;

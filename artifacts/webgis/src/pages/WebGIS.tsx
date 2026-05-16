@@ -544,12 +544,27 @@ export default function WebGIS() {
     setCtxMenu(null);
   };
 
+  // ── LOCAL FEATURE SUGGESTIONS ─────────────────────────────────────────────
+  const localSuggestions = (() => {
+    const q = gmapsQuery.trim().toLowerCase();
+    const named = allFeatures.filter(f => f.properties.name && String(f.properties.name).trim());
+    if (!q) return named.slice(0, 8);  // show top 8 when input is empty/focused
+    return named
+      .filter(f => String(f.properties.name).toLowerCase().includes(q))
+      .slice(0, 8);
+  })();
+
   // ── GMAPS SEARCH ─────────────────────────────────────────────────────────
   const handleGmapsInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val=e.target.value;
+    const val = e.target.value;
     setGmapsQuery(val); setShowSug(true);
     if (debRef.current) clearTimeout(debRef.current);
-    if (val.trim().length>=2) { debRef.current=setTimeout(()=>sugSearch(val),400); } else { sugClear(); }
+    // Nominatim call: debounced, min 2 chars to avoid excessive API calls
+    if (val.trim().length >= 2) {
+      debRef.current = setTimeout(() => sugSearch(val), 400);
+    } else {
+      sugClear();
+    }
   };
 
   const selectSuggestion = (r: NominatimResult) => {
@@ -560,6 +575,21 @@ export default function WebGIS() {
     }
     setGmapsQuery(r.display_name.split(',')[0]);
     setShowSug(false); sugClear();
+  };
+
+  const selectLocalFeature = (f: GeoFeature) => {
+    const center = getCenter(f.geometry);
+    if (center && mapRef.current) {
+      mapRef.current.flyTo(center, 17, { duration: 1.2 });
+      if (f.properties.name) {
+        L.popup({ offset:[0,-8] }).setLatLng(center)
+          .setContent(`<b>${f.properties.name}</b>`)
+          .openOn(mapRef.current);
+      }
+    }
+    setGmapsQuery(String(f.properties.name ?? ''));
+    setShowSug(false); sugClear();
+    setInfoProps({ props: f.properties, geomType: f.geometry.type });
   };
 
   // ── DERIVED ────────────────────────────────────────────────────────────────
@@ -637,10 +667,10 @@ export default function WebGIS() {
                     <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
                   </svg>
                   {isMonaco ? (
-                    <input type="text" placeholder="Cari lokasi di Monaco & dunia…"
+                    <input type="text" placeholder="Ketik 1 huruf untuk saran Monaco…"
                       value={gmapsQuery} onChange={handleGmapsInput}
-                      onFocus={()=>sugResults.length>0&&setShowSug(true)}
-                      onBlur={()=>setTimeout(()=>setShowSug(false),180)}
+                      onFocus={()=>setShowSug(true)}
+                      onBlur={()=>setTimeout(()=>setShowSug(false),200)}
                       autoComplete="off" />
                   ) : (
                     <input type="text" placeholder="Cari jalan, tempat, amenitas…"
@@ -648,18 +678,40 @@ export default function WebGIS() {
                       autoComplete="off" />
                   )}
                 </div>
-                {isMonaco && showSug && (sugLoading||sugResults.length>0) && (
+                {isMonaco && showSug && localSuggestions.length > 0 && (
                   <div className="suggestions">
-                    {sugLoading && <div className="sug-loading">Mencari…</div>}
-                    {!sugLoading && sugResults.map(r=>(
-                      <div key={r.place_id} className="sug-item" onMouseDown={()=>selectSuggestion(r)}>
-                        <span className="sug-icon">{sugIcon(r.type,r.class)}</span>
+                    {/* ── Local Monaco features (instant) ── */}
+                    <div className="sug-section-label">
+                      🇲🇨 Di Peta Monaco
+                    </div>
+                    {localSuggestions.map((f, i) => (
+                      <div key={`local-${i}`} className="sug-item" onMouseDown={() => selectLocalFeature(f)}>
+                        <span className="sug-icon">{featureIcon(f)}</span>
                         <div>
-                          <div className="sug-main">{r.display_name.split(',')[0]}</div>
-                          <div className="sug-sub">{r.display_name.split(',').slice(1,3).join(',').trim()||r.type}</div>
+                          <div className="sug-main">{String(f.properties.name)}</div>
+                          <div className="sug-sub">{featureSubtype(f)}</div>
                         </div>
                       </div>
                     ))}
+
+                    {/* ── Nominatim results ── */}
+                    {(sugLoading || sugResults.length > 0) && (
+                      <>
+                        <div className="sug-section-label" style={{ marginTop: 4 }}>
+                          🔍 Nominatim Search
+                        </div>
+                        {sugLoading && <div className="sug-loading">Mencari…</div>}
+                        {!sugLoading && sugResults.map(r => (
+                          <div key={r.place_id} className="sug-item" onMouseDown={() => selectSuggestion(r)}>
+                            <span className="sug-icon">{sugIcon(r.type, r.class)}</span>
+                            <div>
+                              <div className="sug-main">{r.display_name.split(',')[0]}</div>
+                              <div className="sug-sub">{r.display_name.split(',').slice(1,3).join(',').trim() || r.type}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </>
+                    )}
                     <div className="sug-powered">Powered by <span className="sug-gmaps-badge">Google Maps</span> Geocoding</div>
                   </div>
                 )}
