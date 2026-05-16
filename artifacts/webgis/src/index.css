@@ -460,6 +460,81 @@ body {
   animation: fadeIn 0.3s ease;
 }
 
+/* ── CONTEXT MENU ───────────────────────────────────── */
+.ctx-menu {
+  position: fixed;
+  z-index: 1200;
+  background: #10172a;
+  border: 1px solid rgba(201,168,76,0.25);
+  border-radius: 10px;
+  padding: 6px 0;
+  min-width: 200px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04);
+  animation: fadeIn 0.15s ease;
+  user-select: none;
+}
+
+.ctx-header {
+  padding: 6px 14px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: #4a5568;
+  text-transform: uppercase;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  margin-bottom: 4px;
+}
+
+.ctx-coord {
+  font-size: 10px;
+  color: #8892a4;
+  margin-top: 2px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  font-size: 13px;
+  color: #c8d0dc;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.ctx-item:hover {
+  background: rgba(230,57,70,0.1);
+  color: #fff;
+}
+.ctx-item:hover .ctx-dot { transform: scale(1.2); }
+
+.ctx-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%; flex-shrink: 0;
+  transition: transform 0.15s;
+}
+
+.ctx-badge {
+  margin-left: auto;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.06);
+  color: #8892a4;
+}
+.ctx-badge.set { background: rgba(201,168,76,0.15); color: #c9a84c; }
+
+.ctx-divider {
+  height: 1px;
+  background: rgba(255,255,255,0.05);
+  margin: 4px 0;
+}
+
+.ctx-item.danger { color: #f87171; }
+.ctx-item.danger:hover { background: rgba(248,113,113,0.1); }
+
 /* leaflet overrides */
 .leaflet-popup-content-wrapper {
   background: rgba(10,14,26,0.95) !important;

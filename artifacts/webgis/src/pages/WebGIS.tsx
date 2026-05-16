@@ -201,10 +201,22 @@ export default function WebGIS() {
   const [pickingPoint,    setPickingPoint]   = useState<'start' | 'end' | null>(null);
   const pickingRef = useRef<'start' | 'end' | null>(null);
 
+  // context menu
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; lat: number; lng: number } | null>(null);
+
   const isMonaco = basemap === 'dark';
 
   // keep pickingRef in sync
   useEffect(() => { pickingRef.current = pickingPoint; }, [pickingPoint]);
+
+  // close context menu on any outside click / Escape
+  useEffect(() => {
+    const close = () => setCtxMenu(null);
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setCtxMenu(null); };
+    window.addEventListener('click', close);
+    window.addEventListener('keydown', onKey);
+    return () => { window.removeEventListener('click', close); window.removeEventListener('keydown', onKey); };
+  }, []);
 
   // ── MAP INIT ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -230,8 +242,9 @@ export default function WebGIS() {
     amenityRef.current = amenity;
     boundRef.current   = boundary;
 
-    // map click → set route point
+    // map left-click → set route point (when picking mode active)
     map.on('click', (e: L.LeafletMouseEvent) => {
+      setCtxMenu(null);
       const picking = pickingRef.current;
       if (!picking) return;
       const { lat, lng } = e.latlng;
@@ -243,6 +256,20 @@ export default function WebGIS() {
         setRouteEnd({ lat, lng, label });
         setPickingPoint(null);
       }
+    });
+
+    // map right-click → show context menu
+    map.on('contextmenu', (e: L.LeafletMouseEvent) => {
+      L.DomEvent.preventDefault(e.originalEvent);
+      const { lat, lng } = e.latlng;
+      const containerPoint = map.latLngToContainerPoint([lat, lng]);
+      const mapEl = map.getContainer();
+      const rect  = mapEl.getBoundingClientRect();
+      setCtxMenu({
+        x: rect.left + containerPoint.x,
+        y: rect.top  + containerPoint.y,
+        lat, lng,
+      });
     });
 
     return () => { map.remove(); mapRef.current = null; };
@@ -470,6 +497,32 @@ export default function WebGIS() {
     const tile=tiles[bm];
     if (tile) { tile.addTo(map); tile.bringToBack(); }
     setBasemapState(bm);
+  };
+
+  // ── CONTEXT MENU ACTIONS ─────────────────────────────
+  const ctxSetStart = () => {
+    if (!ctxMenu) return;
+    const { lat, lng } = ctxMenu;
+    const label = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    setRouteStart({ lat, lng, label });
+    setRouteResult(null);
+    setSideTab('route');
+    setCtxMenu(null);
+  };
+
+  const ctxSetEnd = () => {
+    if (!ctxMenu) return;
+    const { lat, lng } = ctxMenu;
+    const label = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    setRouteEnd({ lat, lng, label });
+    setRouteResult(null);
+    setSideTab('route');
+    setCtxMenu(null);
+  };
+
+  const ctxClearRoute = () => {
+    clearRoute();
+    setCtxMenu(null);
   };
 
   // ── GMAPS SEARCH ─────────────────────────────────────────────────────────
@@ -772,6 +825,44 @@ export default function WebGIS() {
         {/* ── MAP ── */}
         <div className="map-area">
           <div id="map" />
+
+          {/* right-click context menu */}
+          {ctxMenu && (
+            <div
+              className="ctx-menu"
+              style={{
+                left: Math.min(ctxMenu.x, window.innerWidth  - 216),
+                top:  Math.min(ctxMenu.y, window.innerHeight - 220),
+              }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="ctx-header">
+                Aksi Peta
+                <div className="ctx-coord">{ctxMenu.lat.toFixed(5)}, {ctxMenu.lng.toFixed(5)}</div>
+              </div>
+
+              <div className="ctx-item" onClick={ctxSetStart}>
+                <div className="ctx-dot" style={{ background:'#22c55e' }} />
+                Jadikan Titik Mulai
+                {routeStart && <span className="ctx-badge set">✓ Ganti</span>}
+              </div>
+
+              <div className="ctx-item" onClick={ctxSetEnd}>
+                <div className="ctx-dot" style={{ background:'#e63946' }} />
+                Jadikan Titik Tujuan
+                {routeEnd && <span className="ctx-badge set">✓ Ganti</span>}
+              </div>
+
+              {(routeStart || routeEnd || routeResult) && (
+                <>
+                  <div className="ctx-divider" />
+                  <div className="ctx-item danger" onClick={ctxClearRoute}>
+                    🗑 Hapus Rute
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           {/* click-to-pick hint */}
           {pickingPoint && (
