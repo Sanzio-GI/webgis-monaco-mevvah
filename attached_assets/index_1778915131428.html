@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monaco WebGIS Explorer</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0a0e1a;
+            color: #e0e6f0;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* SPLASH */
+        #splash {
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(135deg, #0a0e1a 0%, #0d1f3c 50%, #0a0e1a 100%);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.8s ease;
+        }
+
+        #splash.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .splash-flag {
+            font-size: 80px;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .splash-title {
+            font-size: 42px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #e63946, #ffffff, #e63946);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin: 16px 0 8px;
+        }
+
+        .splash-sub {
+            color: #8892a4;
+            font-size: 16px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .splash-progress {
+            width: 280px;
+            height: 3px;
+            background: #1e2d45;
+            border-radius: 2px;
+            margin-top: 40px;
+            overflow: hidden;
+        }
+
+        .splash-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #e63946, #c9a84c);
+            width: 0;
+            animation: load 2s ease-in-out forwards;
+        }
+
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-12px);
+            }
+
+            ;
+        }
+
+        @keyframes load {
+            0% {
+                width: 0;
+            }
+
+            100% {
+                width: 100%;
+            }
+
+            ;
+        }
+
+        /* LAYOUT */
+        #app {
+            display: flex;
+            height: 100vh;
+            opacity: 0;
+            transition: opacity 0.8s ease;
+        }
+
+        #app.visible {
+            opacity: 1;
+        }
+
+        #sidebar {
+            width: 340px;
+            min-width: 340px;
+            background: rgba(10, 14, 26, 0.95);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            flex-direction: column;
+            z-index: 1000;
+            overflow: hidden;
+        }
+
+        #map {
+            flex: 1;
+            position: relative;
+        }
+
+        /* HEADER */
+        .header {
+            padding: 20px 20px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .header-top {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 4px;
+        }
+
+        .header-flag {
+            font-size: 28px;
+        }
+
+        .header-title {
+            font-size: 20px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #e63946, #c9a84c);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-sub {
+            font-size: 12px;
+            color: #8892a4;
+            margin-left: 40px;
+        }
+
+        /* SEARCH */
+        .search-wrap {
+            padding: 16px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .search-box {
+            display: flex;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 10px 14px;
+            gap: 8px;
+            transition: all 0.3s;
+        }
+
+        .search-box:focus-within {
+            border-color: #e63946;
+            background: rgba(230, 57, 70, 0.05);
+        }
+
+        .search-box svg {
+            color: #8892a4;
+            min-width: 16px;
+        }
+
+        .search-box input {
+            background: none;
+            border: none;
+            outline: none;
+            color: #e0e6f0;
+            font-size: 14px;
+            width: 100%;
+        }
+
+        .search-box input::placeholder {
+            color: #4a5568;
+        }
+
+        /* STATS */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            padding: 16px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 10px;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .stat-card:hover,
+        .stat-card.active {
+            background: rgba(230, 57, 70, 0.1);
+            border-color: rgba(230, 57, 70, 0.4);
+        }
+
+        .stat-num {
+            font-size: 22px;
+            font-weight: 700;
+            color: #e63946;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: #8892a4;
+            margin-top: 2px;
+        }
+
+        /* FILTERS */
+        .filter-section {
+            padding: 16px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .section-title {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #8892a4;
+            margin-bottom: 12px;
+        }
+
+        .filter-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .chip {
+            padding: 5px 12px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.03);
+            font-size: 12px;
+            color: #8892a4;
+            cursor: pointer;
+            transition: all 0.25s;
+        }
+
+        .chip:hover {
+            border-color: #c9a84c;
+            color: #c9a84c;
+        }
+
+        .chip.active {
+            background: rgba(201, 168, 76, 0.15);
+            border-color: #c9a84c;
+            color: #c9a84c;
+        }
+
+        /* LAYERS */
+        .layer-section {
+            padding: 16px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .layer-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 0;
+            cursor: pointer;
+        }
+
+        .layer-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .layer-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .layer-name {
+            font-size: 13px;
+        }
+
+        .toggle {
+            width: 36px;
+            height: 20px;
+            background: #1e2d45;
+            border-radius: 10px;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .toggle.on {
+            background: #e63946;
+        }
+
+        .toggle::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #fff;
+            transition: transform 0.3s;
+        }
+
+        .toggle.on::after {
+            transform: translateX(16px);
+        }
+
+        /* FEATURE LIST */
+        .feature-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+        }
+
+        .feature-list::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .feature-list::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .feature-list::-webkit-scrollbar-thumb {
+            background: #1e2d45;
+            border-radius: 2px;
+        }
+
+        .feature-item {
+            padding: 10px 12px;
+            border-radius: 8px;
+            margin-bottom: 6px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            cursor: pointer;
+            transition: all 0.25s;
+        }
+
+        .feature-item:hover {
+            background: rgba(201, 168, 76, 0.08);
+            border-color: rgba(201, 168, 76, 0.3);
+        }
+
+        .feature-item.selected {
+            background: rgba(230, 57, 70, 0.12);
+            border-color: rgba(230, 57, 70, 0.5);
+        }
+
+        .feature-name {
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 3px;
+        }
+
+        .feature-type {
+            font-size: 11px;
+            color: #8892a4;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 40px 20px;
+            color: #4a5568;
+            font-size: 13px;
+        }
+
+        /* MAP CONTROLS */
+        .map-overlay {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            z-index: 800;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .map-btn {
+            width: 40px;
+            height: 40px;
+            background: rgba(10, 14, 26, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: #8892a4;
+            transition: all 0.25s;
+            font-size: 16px;
+        }
+
+        .map-btn:hover {
+            background: rgba(230, 57, 70, 0.15);
+            border-color: #e63946;
+            color: #e63946;
+        }
+
+        /* INFO PANEL */
+        .info-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 800;
+            background: rgba(10, 14, 26, 0.94);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 14px;
+            padding: 16px 18px;
+            max-width: 360px;
+            display: none;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+
+        .info-panel.show {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .info-title {
+            font-size: 15px;
+            font-weight: 700;
+            margin-bottom: 4px;
+            color: #c9a84c;
+            padding-right: 28px;
+            line-height: 1.3;
+        }
+
+        .info-category {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 2px 9px;
+            border-radius: 10px;
+            background: rgba(230, 57, 70, 0.15);
+            color: #e63946;
+            border: 1px solid rgba(230, 57, 70, 0.3);
+            margin-bottom: 10px;
+        }
+
+        .info-desc {
+            font-size: 12.5px;
+            color: #b8c4d0;
+            line-height: 1.65;
+            margin-bottom: 10px;
+            padding: 10px 12px;
+            background: rgba(255, 255, 255, 0.04);
+            border-left: 3px solid #c9a84c;
+            border-radius: 0 6px 6px 0;
+        }
+
+        .info-divider {
+            height: 1px;
+            background: rgba(255, 255, 255, 0.07);
+            margin: 8px 0;
+        }
+
+        .info-row {
+            display: flex;
+            gap: 8px;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+
+        .info-key {
+            color: #8892a4;
+            min-width: 90px;
+        }
+
+        .info-val {
+            color: #e0e6f0;
+        }
+
+        .info-close {
+            position: absolute;
+            top: 12px;
+            right: 14px;
+            cursor: pointer;
+            color: #8892a4;
+            font-size: 18px;
+            line-height: 1;
+            transition: color 0.2s;
+        }
+
+        .info-close:hover {
+            color: #e63946;
+        }
+
+        /* BASEMAP SELECTOR */
+        .basemap-bar {
+            position: absolute;
+            bottom: 20px;
+            right: 16px;
+            z-index: 800;
+            display: flex;
+            gap: 6px;
+        }
+
+        .bm-btn {
+            padding: 6px 12px;
+            border-radius: 6px;
+            background: rgba(10, 14, 26, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #8892a4;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.25s;
+        }
+
+        .bm-btn:hover,
+        .bm-btn.active {
+            background: rgba(201, 168, 76, 0.15);
+            border-color: #c9a84c;
+            color: #c9a84c;
+        }
+
+        /* LEGEND */
+        .legend {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            z-index: 800;
+            background: rgba(10, 14, 26, 0.88);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            padding: 12px 16px;
+            min-width: 150px;
+        }
+
+        .legend-title {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #8892a4;
+            margin-bottom: 8px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+            font-size: 12px;
+        }
+
+        .legend-color {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+            flex-shrink: 0;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0)
+            }
+
+            ;
+        }
+
+        @keyframes pulse-ring {
+            0% {
+                box-shadow: 0 0 0 0 rgba(230, 57, 70, 0.6);
+            }
+
+            70% {
+                box-shadow: 0 0 0 14px rgba(230, 57, 70, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(230, 57, 70, 0);
+            }
+        }
+
+        /* Popup dark theme */
+        .leaflet-popup-content-wrapper {
+            background: rgba(10, 14, 26, 0.95) !important;
+            border: 1px solid rgba(201, 168, 76, 0.4) !important;
+            border-radius: 8px !important;
+            color: #e0e6f0 !important;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
+        }
+
+        .leaflet-popup-content {
+            font-family: 'Inter', sans-serif !important;
+            font-size: 13px !important;
+            margin: 8px 14px !important;
+        }
+
+        .leaflet-popup-content b {
+            color: #c9a84c;
+        }
+
+        .leaflet-popup-tip {
+            background: rgba(10, 14, 26, 0.95) !important;
+        }
+
+        .leaflet-popup-close-button {
+            color: #8892a4 !important;
+        }
+
+        /* BASEMAP label */
+        .leaflet-control-attribution {
+            background: rgba(10, 14, 26, 0.7) !important;
+            color: #4a5568 !important;
+            font-size: 10px !important;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- SPLASH SCREEN -->
+    <div id="splash">
+        <div class="splash-flag">🇲🇨</div>
+        <div class="splash-title">Monaco WebGIS</div>
+        <div class="splash-sub">Interactive Geographic Information System</div>
+        <div class="splash-progress">
+            <div class="splash-bar"></div>
+        </div>
+    </div>
+
+    <!-- APP -->
+    <div id="app">
+        <!-- SIDEBAR -->
+        <div id="sidebar">
+            <div class="header">
+                <div class="header-top">
+                    <span class="header-flag">🇲🇨</span>
+                    <span class="header-title">Monaco WebGIS</span>
+                </div>
+                <div class="header-sub">Principauté de Monaco · OSM Data 2026</div>
+            </div>
+
+            <div class="search-wrap">
+                <div class="search-box">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <circle cx="11" cy="11" r="8" />
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    <input type="text" id="searchInput" placeholder="Cari jalan, tempat, amenitas..." />
+                </div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card" data-filter="all">
+                    <div class="stat-num" id="statTotal">6790</div>
+                    <div class="stat-label">Total Fitur</div>
+                </div>
+                <div class="stat-card" data-filter="building">
+                    <div class="stat-num">1592</div>
+                    <div class="stat-label">Bangunan</div>
+                </div>
+                <div class="stat-card" data-filter="highway">
+                    <div class="stat-num">3520</div>
+                    <div class="stat-label">Jalan</div>
+                </div>
+                <div class="stat-card" data-filter="amenity">
+                    <div class="stat-num">225</div>
+                    <div class="stat-label">Fasilitas</div>
+                </div>
+            </div>
+
+            <div class="filter-section">
+                <div class="section-title">Filter Amenitas</div>
+                <div class="filter-chips">
+                    <div class="chip active" data-amenity="all">Semua</div>
+                    <div class="chip" data-amenity="restaurant">🍽️ Resto</div>
+                    <div class="chip" data-amenity="cafe">☕ Kafe</div>
+                    <div class="chip" data-amenity="bar">🍺 Bar</div>
+                    <div class="chip" data-amenity="hotel">🏨 Hotel</div>
+                    <div class="chip" data-amenity="hospital">🏥 RS</div>
+                    <div class="chip" data-amenity="place_of_worship">⛪ Ibadah</div>
+                </div>
+            </div>
+
+            <div class="layer-section">
+                <div class="section-title">Layer Peta</div>
+                <div class="layer-item">
+                    <div class="layer-left">
+                        <div class="layer-dot" style="background:#e63946;"></div>
+                        <span class="layer-name">Jalan & Jalur</span>
+                    </div>
+                    <div class="toggle on" id="tog-roads" onclick="toggleLayer('roads',this)"></div>
+                </div>
+                <div class="layer-item">
+                    <div class="layer-left">
+                        <div class="layer-dot" style="background:#c9a84c;"></div>
+                        <span class="layer-name">Bangunan</span>
+                    </div>
+                    <div class="toggle on" id="tog-buildings" onclick="toggleLayer('buildings',this)"></div>
+                </div>
+                <div class="layer-item">
+                    <div class="layer-left">
+                        <div class="layer-dot" style="background:#4fc3f7;"></div>
+                        <span class="layer-name">Amenitas</span>
+                    </div>
+                    <div class="toggle on" id="tog-amenity" onclick="toggleLayer('amenity',this)"></div>
+                </div>
+                <div class="layer-item">
+                    <div class="layer-left">
+                        <div class="layer-dot" style="background:#81c784;"></div>
+                        <span class="layer-name">Batas Wilayah</span>
+                    </div>
+                    <div class="toggle on" id="tog-boundary" onclick="toggleLayer('boundary',this)"></div>
+                </div>
+            </div>
+
+            <div class="feature-list" id="featureList">
+                <div class="no-results">Memuat data peta...</div>
+            </div>
+        </div>
+
+        <!-- MAP -->
+        <div id="map">
+            <!-- Legend -->
+            <div class="legend">
+                <div class="legend-title">Legenda</div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background:#e63946;"></div>Jalan Primer
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background:#ff8c42;"></div>Jalan Sekunder
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background:#ffd166;"></div>Jalan Lokal
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background:#c9a84c;opacity:0.7;"></div>Bangunan
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background:#4fc3f7;border-radius:50%;"></div>Amenitas
+                </div>
+            </div>
+
+            <!-- Map controls -->
+            <div class="map-overlay">
+                <div class="map-btn" onclick="map.zoomIn()" title="Zoom In">+</div>
+                <div class="map-btn" onclick="map.zoomOut()" title="Zoom Out">−</div>
+                <div class="map-btn" onclick="fitBounds()" title="Fit Monaco">🎯</div>
+                <div class="map-btn" onclick="locateUser()" title="Lokasi Saya">📍</div>
+            </div>
+
+            <!-- Info panel -->
+            <div class="info-panel" id="infoPanel">
+                <span class="info-close" onclick="closeInfo()">✕</span>
+                <div class="info-title" id="infoTitle">Fitur</div>
+                <div id="infoBody"></div>
+            </div>
+
+            <!-- Basemap bar -->
+            <div class="basemap-bar">
+                <div class="bm-btn active" onclick="setBasemap('dark',this)">Dark</div>
+                <div class="bm-btn" onclick="setBasemap('osm',this)">OSM</div>
+                <div class="bm-btn" onclick="setBasemap('satellite',this)">Satelit</div>
+                <div class="bm-btn" onclick="setBasemap('topo',this)">Topo</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // SPLASH
+        setTimeout(() => {
+            document.getElementById('splash').classList.add('hidden');
+            document.getElementById('app').classList.add('visible');
+        }, 2200);
+
+        // BASEMAPS
+        const basemaps = {
+            dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '© CartoDB', maxZoom: 19 }),
+            osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap', maxZoom: 19 }),
+            satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 }),
+            topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: '© OpenTopoMap', maxZoom: 17 })
+        };
+
+        // MAP
+        const map = L.map('map', {
+            center: [43.7384, 7.4246],
+            zoom: 14,
+            zoomControl: false,
+            layers: [basemaps.dark]
+        });
+
+        // LAYER GROUPS
+        const layers = {
+            roads: L.layerGroup().addTo(map),
+            buildings: L.layerGroup().addTo(map),
+            amenity: L.layerGroup().addTo(map),
+            boundary: L.layerGroup().addTo(map)
+        };
+
+        // STYLES
+        function roadStyle(p) {
+            const h = p.highway;
+            let c = '#e63946', w = 2;
+            if (h === 'primary' || h === 'trunk') { c = '#e63946'; w = 4; }
+            else if (h === 'secondary') { c = '#ff8c42'; w = 3; }
+            else if (h === 'tertiary' || h === 'residential') { c = '#ffd166'; w = 2; }
+            else if (h === 'footway' || h === 'steps' || h === 'path') { c = '#a8b2c1'; w = 1; }
+            else if (h === 'service') { c = '#6c757d'; w = 1.5; }
+            else { c = '#8892a4'; w = 1.5; }
+            return { color: c, weight: w, opacity: 0.85, dashArray: h === 'footway' || h === 'steps' ? '3,3' : null };
+        }
+
+        function buildingStyle() {
+            return { color: '#c9a84c', fillColor: '#c9a84c', fillOpacity: 0.25, weight: 1, opacity: 0.7 };
+        }
+
+        // AMENITY ICONS
+        function amenityIcon(type) {
+            const icons = { restaurant: '🍽️', cafe: '☕', bar: '🍺', fast_food: '🍔', hotel: '🏨', hospital: '🏥', place_of_worship: '⛪', police: '👮', library: '📚', marketplace: '🏪', pub: '🍺', pharmacy: '💊', bank: '🏦', atm: '💳', parking: '🅿️', fuel: '⛽', school: '🏫', university: '🎓' };
+            const e = icons[type] || '📌';
+            return L.divIcon({ className: '', html: `<div style="font-size:18px;text-align:center;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));">${e}</div>`, iconSize: [24, 24], iconAnchor: [12, 12] });
+        }
+
+        // DATA
+        let allFeatures = [];
+        let activeAmenity = 'all';
+        let searchTerm = '';
+
+        // ─── DATABASE DESKRIPSI TEMPAT MONACO ────────────────────────────────────────
+        const placeDescriptions = {
+            'Casino de Monte-Carlo': { emoji: '🎰', cat: 'Kasino & Hiburan', desc: 'Kasino paling legendaris di dunia, dibuka 1863. Bangunan bergaya Belle Époque ini menjadi simbol kemewahan Monaco dan telah muncul dalam berbagai film James Bond. Dikelola oleh Société des Bains de Mer.' },
+            'Palais Princier de Monaco': { emoji: '👑', cat: 'Istana Kerajaan', desc: 'Kediaman resmi Keluarga Grimaldi sejak abad ke-13. Pengunjung dapat menyaksikan upacara pergantian penjaga setiap hari pukul 11:55. Sebagian istana dibuka untuk umum selama musim panas.' },
+            'Musée Océanographique': { emoji: '🐠', cat: 'Museum Sains', desc: 'Museum oseanografi tertua di dunia, didirikan Pangeran Albert I tahun 1910. Terletak di tebing setinggi 85m, menampilkan koleksi laut menakjubkan dan akuarium tropis yang terkenal.' },
+            'Cathédrale Notre-Dame': { emoji: '⛪', cat: 'Tempat Ibadah', desc: 'Katedral utama Monaco bergaya Neo-Romanesque, dibangun 1875. Tempat pernikahan Pangeran Rainier III dan Grace Kelly (1956). Keduanya dimakamkan di sini.' },
+            'Jardin Exotique': { emoji: '🌵', cat: 'Taman & Alam', desc: 'Taman kaktus dan sukulen terlengkap di Eropa, terletak di tebing curam dengan panorama Monaco yang spektakuler. Dibuka sejak 1933, juga memiliki gua prasejarah Observatoire.' },
+            'Stade Louis II': { emoji: '⚽', cat: 'Olahraga', desc: 'Stadion kebanggaan Monaco berkapasitas 18.500 penonton, markas AS Monaco FC. Pernah menjadi tuan rumah Piala Super UEFA. Salah satu stadion paling modern di Eropa.' },
+            'Circuit de Monaco': { emoji: '🏎️', cat: 'Formula 1', desc: 'Sirkuit balap jalanan paling ikonik di dunia F1. Jalanan sempit Monaco berubah menjadi arena Grand Prix setiap tahun. Dijuluki "The Jewel in the Crown of Formula 1".' },
+            'Opéra de Monte-Carlo': { emoji: '🎭', cat: 'Seni & Budaya', desc: 'Gedung opera megah bergaya Belle Époque dirancang arsitek Charles Garnier (perancang Opera Paris), dibuka 1879. Salah satu panggung opera paling bergengsi di Eropa.' },
+            'Port Hercule': { emoji: '⛵', cat: 'Pelabuhan', desc: 'Satu-satunya pelabuhan alam dalam Monaco, dermaga yacht dan kapal pesiar mewah dari seluruh dunia. Saat Grand Prix, tribun penonton memadati tepi pelabuhan ini.' },
+            'Grimaldi Forum': { emoji: '🎪', cat: 'Pusat Konvensi', desc: 'Pusat konvensi dan budaya Monaco yang terletak langsung di tepi pantai Mediterania. Menyelenggarakan pameran internasional, konferensi, dan pertunjukan seni kelas dunia.' },
+            'Larvotto': { emoji: '🏖️', cat: 'Pantai', desc: 'Kawasan pantai satu-satunya Monaco dengan pantai publik berbatu dan air jernih Mediterania. Dilengkapi fasilitas lengkap, bar pantai, dan berbatasan dengan hotel-hotel mewah.' },
+            'Rocher de Monaco': { emoji: '🏰', cat: 'Kawasan Bersejarah', desc: 'Bukit karang tempat berdirinya Monaco-Ville (kota tua), istana, dan katedral. Inti Kerajaan Monaco sejak abad pertengahan dengan pemandangan 360° yang memukau ke seluruh penjuru.' },
+            'Monte-Carlo': { emoji: '💎', cat: 'Kawasan', desc: 'Kawasan paling terkenal Monaco, identik dengan kemewahan, kasino, dan kehidupan glamor. Destinasi selebriti, miliarder, dan pecinta kemewahan dari seluruh dunia.' },
+            'La Condamine': { emoji: '🏘️', cat: 'Kawasan', desc: 'Kawasan bersejarah Monaco di tepi Port Hercule. Dikenal dengan pasar tradisional, restoran lokal, dan atmosfer kehidupan sehari-hari Monaco yang autentik.' },
+            'Fontvieille': { emoji: '🏭', cat: 'Kawasan', desc: 'Kawasan industri dan komersial Monaco yang dibangun di atas lahan reklamasi laut. Kini menjadi pusat bisnis, beberapa museum tematik, dan taman kota.' },
+            'Moneghetti': { emoji: '🌄', cat: 'Kawasan', desc: 'Kawasan perumahan tenang di bagian barat Monaco dengan taman-taman hijau dan akses ke Jardin Exotique. Memberikan suasana lebih damai dibanding pusat kota.' },
+            'Rampoldi': { emoji: '🍽️', cat: 'Restoran Ikonik', desc: 'Restoran legendaris Monte-Carlo berdiri sejak 1946. Terkenal dengan masakan Italia-Prancis kelas dunia. Sering dikunjungi selebriti dunia dan anggota keluarga kerajaan Monaco.' },
+            'Café de Paris Monte-Carlo': { emoji: '☕', cat: 'Kafe & Brasserie', desc: 'Brasserie ikonik sejak 1882 di Place du Casino. Pemandangan langsung ke Casino de Monte-Carlo, menu Prancis klasik, dan mesin slot bersejarah yang menjadi atraksi tersendiri.' },
+            'Hôtel de Paris Monte-Carlo': { emoji: '🏨', cat: 'Hotel Mewah', desc: 'Hotel bintang lima paling legendaris Monaco sejak 1863. Wine cellar dengan 600.000+ botol anggur. Tempat menginap favorit kepala negara, selebriti, dan bangsawan seluruh dunia.' },
+            'Le Louis XV': { emoji: '👨‍🍳', cat: 'Restoran Fine Dining', desc: 'Restoran bintang tiga Michelin karya Chef Alain Ducasse di dalam Hotel de Paris. Salah satu pengalaman kuliner terbaik di dunia dengan menu masakan Mediterania kontemporer yang eksklusif.' },
+            'Fairmont Monte Carlo': { emoji: '🏨', cat: 'Hotel Mewah', desc: 'Hotel bintang lima bergaya modern di tepi laut Monaco. Salah satu hotel terbesar di Riviera Prancis dengan pemandangan langsung ke Laut Mediterania dan Port Hercule.' },
+            'Place du Casino': { emoji: '🌹', cat: 'Kawasan Publik', desc: 'Alun-alun utama Monaco yang megah, dikelilingi Casino de Monte-Carlo, Hotel de Paris, dan Café de Paris. Pusat kehidupan sosial dan wisata di jantung Monte-Carlo.' },
+            'Boulevard des Moulins': { emoji: '🛍️', cat: 'Jalan Perbelanjaan', desc: 'Jalan perbelanjaan utama Monte-Carlo dipenuhi butik mewah, toko perhiasan, parfum, dan restoran kelas atas. Pusat kehidupan komersial dan sosial Monte-Carlo.' },
+            'Avenue Princesse Grace': { emoji: '👸', cat: 'Jalan', desc: 'Jalan tepi pantai yang dinamai untuk mengenang Putri Grace Kelly. Membentang sepanjang pantai Larvotto dengan panorama indah Laut Mediterania yang memesona.' },
+            'Boulevard Albert Ier': { emoji: '🌊', cat: 'Jalan', desc: 'Jalan utama yang membentang di sepanjang Port Hercule, menawarkan pemandangan indah pelabuhan dan yacht-yacht mewah yang berlabuh dari berbagai penjuru dunia.' },
+            'Musée des Timbres': { emoji: '📮', cat: 'Museum', desc: 'Museum perangko dan koin Monaco menampilkan koleksi lengkap perangko Monaco sejak 1885 dan koin Kerajaan Grimaldi dari masa ke masa. Wajib dikunjungi pecinta filateli.' },
+            'Nouveau Musée National': { emoji: '🖼️', cat: 'Museum Seni', desc: 'Museum seni nasional Monaco menampilkan koleksi seni kontemporer dan modern. Berlokasi di dua gedung bersejarah: Villa Paloma dan Villa Sauber dengan taman yang indah.' },
+            'Roseraie Princesse Grace': { emoji: '🌹', cat: 'Taman', desc: 'Taman mawar yang mempersembahkan 4.000 pohon mawar dari 150 varietas berbeda, didedikasikan untuk mengenang Putri Grace Kelly. Tempat romantis favorit di Monaco.' },
+            'Jardin Japonais': { emoji: '🌸', cat: 'Taman Jepang', desc: 'Taman Jepang seluas 7.000 m² yang dirancang oleh arsitek Jepang Yasuo Beppu. Taman tepi laut otentik bergaya Zen ini menawarkan ketenangan di tengah Monaco yang sibuk.' },
+            'Théâtre Princesse Grace': { emoji: '🎬', cat: 'Teater', desc: 'Teater kebanggaan Monaco yang dinamai untuk menghormati Putri Grace Kelly. Menyelenggarakan pertunjukan teater, tari, dan pertunjukan seni dari seluruh dunia sepanjang tahun.' },
+            'Musée de la Chapelle': { emoji: '⛪', cat: 'Museum & Ibadah', desc: 'Kapel bersejarah yang kini berfungsi sebagai ruang pameran seni dan budaya Monaco. Menampilkan karya seni religius dan sejarah Kerajaan Monaco dari masa lampau.' },
+            // === HOTELS ===
+            'Hotel Hermitage Monte-Carlo': { emoji: '🏨', cat: 'Hotel Mewah', desc: 'Hotel Belle Époque ikonik dengan kolam renang beratap kaca karya Gustave Eiffel. Menawarkan pemandangan spektakuler ke Port Hercule dan laut Mediterania.' },
+            'Monte-Carlo Bay Hotel': { emoji: '🏨', cat: 'Hotel Resor', desc: 'Resor bintang lima modern di kawasan Larvotto dengan laguna luar ruangan, spa, dan akses langsung ke pantai. Perpaduan sempurna kemewahan modern dan alam Mediterania.' },
+            'Columbus Monaco': { emoji: '🏨', cat: 'Hotel Butik', desc: 'Hotel butik kontemporer di Fontvieille dengan desain interior modern-minimalis. Menawarkan akses mudah ke paddock F1 dan museum otomotif Monaco yang ikonik.' },
+            'Hotel Metropole Monte-Carlo': { emoji: '🏨', cat: 'Hotel Mewah', desc: 'Hotel bintang lima bersejarah sejak 1886 dengan kolam renang mewah karya Karl Lagerfeld. Rumah bagi restoran berbintang Michelin Joel Robuchon dan Yoshi.' },
+            'Novotel Monte Carlo': { emoji: '🏨', cat: 'Hotel', desc: 'Hotel nyaman dan modern di pusat Monte-Carlo dengan fasilitas lengkap. Lokasi strategis dekat kasino dan kawasan perbelanjaan utama Monaco yang mudah dijangkau.' },
+            // === RESTAURANTS & CAFES ===
+            'Stars n Bars': { emoji: '🍔', cat: 'Bar & Restoran', desc: 'Bar dan restoran bertemakan olahraga yang ikonik di Port Hercule. Favorit para penggemar Formula 1 dengan memorabilia balap unik dan suasana yang sangat hidup.' },
+            'Brasserie de Monaco': { emoji: '🍺', cat: 'Brasserie', desc: 'Satu-satunya microbrewery di Monaco yang memproduksi bir craft sendiri. Menyajikan masakan brasserie klasik dengan bir lokal segar dalam suasana kasual yang menyenangkan.' },
+            'Sass Cafe': { emoji: '🎶', cat: 'Kafe & Hiburan', desc: 'Kafe mewah dan klub malam favorit selebriti di Monte-Carlo sejak 1958. Terkenal dengan musik live jazz dan suasana eksklusif yang memikat bintang-bintang Hollywood.' },
+            'Maya Bay': { emoji: '🌊', cat: 'Restoran Tepi Laut', desc: 'Restoran tepi laut dengan pemandangan Port Hercule yang menakjubkan. Menyajikan hidangan laut segar Mediterania dalam suasana chic dan modern yang memukau.' },
+            'Quai des Artistes': { emoji: '🎨', cat: 'Restoran', desc: 'Restoran bergaya brasserie modern di tepi pelabuhan Monaco. Terkenal dengan tartare sapi segar dan menu Franco-Belgia yang kreatif dalam suasana yang artistik.' },
+            'Le Grill': { emoji: '🥩', cat: 'Restoran Rooftop', desc: 'Restoran rooftop di puncak Hotel de Paris dengan panorama Monaco 360 derajat. Menyajikan hidangan grill premium dan fondue keju dalam suasana romantis tak tertandingi.' },
+            'Beefbar Monaco': { emoji: '🥩', cat: 'Restoran Daging', desc: 'Restoran daging premium bergaya modern di Monte-Carlo. Menyajikan wagyu dan premium cut terbaik dunia dalam dekorasi kontemporer yang elegan dan mewah.' },
+            // === MUSEUMS ===
+            'Collection de Voitures Anciennes': { emoji: '🚗', cat: 'Museum Otomotif', desc: 'Koleksi mobil antik dan mewah milik Keluarga Grimaldi di Fontvieille. Menampilkan lebih dari 100 kendaraan bersejarah termasuk koleksi pribadi Pangeran Rainier III.' },
+            'Musee Naval': { emoji: '⚓', cat: 'Museum Maritim', desc: 'Museum angkatan laut di Fontvieille menampilkan koleksi model kapal, peralatan navigasi kuno, dan sejarah panjang Monaco sebagai kekuatan maritim di Mediterania.' },
+            'Musee des Souvenirs Napoleoniens': { emoji: '🎖️', cat: 'Museum Sejarah', desc: 'Museum menyimpan koleksi memorabilia Napoleon Bonaparte dan dokumen bersejarah Kerajaan Monaco, di dalam kompleks Palais Princier yang megah dan bersejarah.' },
+            'Musee Anthropologique': { emoji: '🦴', cat: 'Museum Ilmu', desc: 'Museum antropologi menyimpan temuan arkeologi dari gua Observatoire yang berusia ribuan tahun. Koleksi tulang dan artefak prasejarah manusia yang tinggal di Monaco.' },
+            // === CHURCHES ===
+            'Eglise Saint-Charles': { emoji: '⛪', cat: 'Gereja', desc: 'Gereja katolik bersejarah di Monte-Carlo bergaya Neo-Baroque dibangun akhir abad ke-19. Dikenal dengan dekorasi interior yang kaya dan arsitektur yang sangat memukau.' },
+            'Chapelle de la Visitation': { emoji: '⛪', cat: 'Kapel', desc: 'Kapel historis abad ke-17 yang menampung koleksi seni religius Baroque yang luar biasa. Terletak di jantung kota tua Monaco dengan arsitektur yang sangat indah.' },
+            'Eglise Sainte-Devote': { emoji: '⛪', cat: 'Gereja Pelindung', desc: 'Gereja yang dipersembahkan untuk Santa Devota, pelindung Monaco. Setiap tahun diadakan prosesi dan festival untuk menghormati Santa pelindung negara kerajaan ini.' },
+            // === PARKS ===
+            'Jardins Saint-Martin': { emoji: '🌿', cat: 'Taman Kota', desc: 'Taman hijau indah di tepi tebing Rocher Monaco dengan jalur pejalan kaki dan pemandangan laut Mediterania yang menakjubkan. Tempat relaksasi favorit warga Monaco.' },
+            'Parc Princesse Antoinette': { emoji: '🌳', cat: 'Taman Kota', desc: 'Taman keluarga di Moneghetti dengan lapangan olahraga, area bermain anak, dan jalur hijau yang rindang. Dinamai dari Putri Antoinette, saudari Pangeran Rainier III.' },
+            'Jardin du Casino': { emoji: '🌺', cat: 'Taman Casino', desc: 'Taman ornamental megah di depan Casino de Monte-Carlo dengan air mancur, patung-patung klasik, dan bunga-bunga berwarna-warni yang terawat sangat rapi sepanjang tahun.' },
+            // === STREETS ===
+            'Rue Grimaldi': { emoji: '🛣️', cat: 'Jalan Bersejarah', desc: 'Salah satu jalan tertua Monaco yang melewati jantung La Condamine. Dinamai dari keluarga Grimaldi yang memerintah Monaco sejak abad ke-13 hingga saat ini.' },
+            'Rue de la Turbie': { emoji: '🛣️', cat: 'Jalan', desc: 'Jalan utama di Monaco-Ville menuju kawasan kota tua dan Palais Princier. Dilapisi batu cobblestone tradisional dengan toko suvenir dan restoran khas Monaco.' },
+            'Avenue de la Costa': { emoji: '🛣️', cat: 'Jalan', desc: 'Jalan elegante di Monte-Carlo yang menghubungkan kawasan perbelanjaan dengan pelabuhan. Dipenuhi butik-butik mewah dan kafe bergaya Prancis yang menawan.' },
+            'Quai Antoine Ier': { emoji: '⚓', cat: 'Dermaga', desc: 'Dermaga utama di Port Hercule yang menjadi parkiran bagi yacht-yacht super mewah. Spot foto terbaik Monaco dengan latar belakang kapal pesiar raksasa dan bukit karang.' },
+            'Quai des Etats-Unis': { emoji: '🇺🇸', cat: 'Dermaga', desc: 'Dermaga di Port Hercule yang dinamai menghormati Amerika Serikat, negara asal Putri Grace Kelly. Pemandangan spektakuler ke seluruh kawasan pelabuhan Monaco.' },
+            'Allee des Boulingrins': { emoji: '🌸', cat: 'Jalur Taman', desc: 'Jalur pejalan kaki indah di tengah taman Casino Monte-Carlo. Tempat favorit berjalan santai di antara tanaman bunga yang terawat sempurna sepanjang tahun.' },
+            // === PUBLIC SQUARES ===
+            'Place du Palais': { emoji: '🏰', cat: 'Alun-alun Kerajaan', desc: 'Alun-alun megah di depan Palais Princier tempat pergantian penjaga berlangsung setiap hari pukul 11:55. Pemandangan panoramik seluruh Monaco dari ketinggian Rocher.' },
+            'Place des Armes': { emoji: '🏪', cat: 'Pasar & Alun-alun', desc: 'Pusat pasar tradisional Monaco di La Condamine tempat warga berbelanja setiap pagi. Produk segar, bunga, dan makanan lokal berkualitas tersedia setiap hari.' },
+            'Marche de la Condamine': { emoji: '🥦', cat: 'Pasar Tradisional', desc: 'Pasar segar terbesar Monaco di La Condamine dengan sayuran, buah, rempah, dan bunga segar setiap hari. Tempat terbaik merasakan kehidupan autentik warga Monaco.' },
+            // === SPORTS ===
+            'Monte-Carlo Country Club': { emoji: '🎾', cat: 'Olahraga', desc: 'Klub tenis bergengsi tempat Monte-Carlo Masters diselenggarakan setiap April. Fasilitas kelas dunia di tebing dengan pemandangan laut Mediterania yang tak tertandingi.' },
+            'Yacht Club de Monaco': { emoji: '⛵', cat: 'Klub Yacht', desc: 'Klub olahraga layar elit Monaco, organisasi terkemuka untuk pecinta laut dan navigasi. Menyelenggarakan berbagai regatta dan acara maritim bergengsi sepanjang tahun.' },
+            'Piscine du Stade Nautique': { emoji: '🏊', cat: 'Fasilitas Olahraga', desc: 'Kolam renang olimpik Monaco yang mengambang di tepi laut Mediterania. Salah satu kolam renang paling unik di dunia, pengalaman berenang di atas lautan terbuka.' },
+            // === EDUCATION ===
+            'Lycee Albert Ier': { emoji: '🎓', cat: 'Pendidikan', desc: 'Sekolah menengah utama Monaco yang menawarkan pendidikan berkualitas tinggi. Warga Monaco dan ekspatriat bersekolah sebelum melanjutkan ke universitas top dunia.' },
+            'International University of Monaco': { emoji: '🎓', cat: 'Universitas', desc: 'Universitas internasional Monaco menawarkan program bisnis, keuangan, dan manajemen kelas dunia. Menarik mahasiswa dari seluruh dunia ke lingkungan akademik kosmopolitan.' },
+            // === HEALTHCARE ===
+            'Centre Hospitalier Princesse Grace': { emoji: '🏥', cat: 'Rumah Sakit', desc: 'Rumah sakit utama Monaco yang dinamai untuk menghormati Putri Grace Kelly. Fasilitas medis berteknologi tinggi melayani warga Monaco dengan standar Eropa tertinggi.' },
+            // === TRANSPORT ===
+            'Heliport de Monaco': { emoji: '🚁', cat: 'Transportasi Udara', desc: 'Helipad komersial di Fontvieille yang menghubungkan Monaco dengan Bandara Nice dalam 7 menit perjalanan. Layanan helikopter mewah paling efisien di Riviera Prancis.' },
+            'Gare de Monaco-Monte-Carlo': { emoji: '🚉', cat: 'Stasiun Kereta', desc: 'Stasiun kereta bawah tanah Monaco yang unik, terletak sepenuhnya di bawah tanah. Menghubungkan Monaco dengan jalur kereta pantai Nice-Ventimiglia yang sangat indah.' },
+            // === OTHER LANDMARKS ===
+            'Thermes Marins Monte-Carlo': { emoji: '💆', cat: 'Spa & Wellness', desc: 'Pusat thalassotherapy dan spa mewah di tepi laut Monaco. Menggunakan air laut Mediterania segar untuk perawatan kesehatan dan relaksasi berkelas dunia.' },
+            'Villa Paloma': { emoji: '🖼️', cat: 'Galeri Seni', desc: 'Villa bersejarah Belle Époque yang kini menjadi venue Nouveau Musée National Monaco. Menyelenggarakan pameran seni kontemporer internasional dalam setting arsitektur klasik.' },
+            'Villa Sauber': { emoji: '🖼️', cat: 'Galeri Seni', desc: 'Villa historis di tepi pantai Larvotto, bagian dari Nouveau Musée National Monaco. Pameran seni dari koleksi nasional dalam suasana villa Riviera yang autentik.' },
+        };
+
+        function findDescription(name) {
+            if (!name) return null;
+            const n = name.toLowerCase().trim();
+            const keys = Object.keys(placeDescriptions);
+            // Exact match first
+            const exact = keys.find(k => k.toLowerCase() === n);
+            if (exact) return placeDescriptions[exact];
+            // Partial match
+            const partial = keys.find(k =>
+                n.includes(k.toLowerCase()) || k.toLowerCase().includes(n)
+            );
+            return partial ? placeDescriptions[partial] : null;
+        }
+
+        function showInfo(props, geomType) {
+            const panel = document.getElementById('infoPanel');
+            const title = document.getElementById('infoTitle');
+            const body = document.getElementById('infoBody');
+            const name = props.name || props.amenity || props.highway || props.building || 'Tanpa Nama';
+            title.textContent = name;
+
+            const desc = findDescription(name);
+            const rows = [
+                ['Tipe OSM', props.osm_type || '-'],
+                ['OSM ID', props.osm_id || '-'],
+                ['Highway', props.highway || '-'],
+                ['Amenitas', props.amenity || '-'],
+                ['Bangunan', props.building || '-'],
+                ['Permukaan', props.surface || '-'],
+                ['Satu Arah', props.oneway || '-'],
+                ['Geometri', geomType]
+            ].filter(r => r[1] && r[1] !== '-' && r[1] !== 'null');
+
+            let html = '';
+            if (desc) {
+                html += `<div class="info-category">${desc.emoji} ${desc.cat}</div>`;
+                html += `<div class="info-desc">${desc.desc}</div>`;
+                if (rows.length) html += '<div class="info-divider"></div>';
+            }
+            html += rows.map(r => `<div class="info-row"><span class="info-key">${r[0]}</span><span class="info-val">${r[1]}</span></div>`).join('');
+            body.innerHTML = html;
+            panel.classList.add('show');
+        }
+
+
+        function closeInfo() { document.getElementById('infoPanel').classList.remove('show'); }
+
+        function loadGeoJSON() {
+            fetch('Monaco.geojson')
+                .then(r => r.json())
+                .then(data => {
+                    allFeatures = data.features;
+                    renderFeatures(allFeatures);
+                    updateList(allFeatures);
+                })
+                .catch(e => console.error('Error loading GeoJSON:', e));
+        }
+
+        function renderFeatures(features) {
+            layers.roads.clearLayers();
+            layers.buildings.clearLayers();
+            layers.amenity.clearLayers();
+
+            features.forEach(f => {
+                const p = f.properties;
+                const gType = f.geometry?.type;
+
+                // Roads
+                if (p.highway && p.highway !== 'bus_stop' && p.highway !== 'crossing' && p.highway !== 'give_way' && p.highway !== 'traffic_signals') {
+                    const line = L.geoJSON(f, { style: () => roadStyle(p) });
+                    line.on('click', () => showInfo(p, gType));
+                    layers.roads.addLayer(line);
+                }
+
+                // Buildings
+                if (p.building && (gType === 'Polygon' || gType === 'MultiPolygon')) {
+                    const poly = L.geoJSON(f, { style: buildingStyle });
+                    poly.on('click', () => showInfo(p, gType));
+                    layers.buildings.addLayer(poly);
+                }
+
+                // Amenity markers
+                if (p.amenity && gType === 'Point') {
+                    if (activeAmenity === 'all' || p.amenity === activeAmenity) {
+                        const coords = f.geometry.coordinates;
+                        const m = L.marker([coords[1], coords[0]], { icon: amenityIcon(p.amenity) });
+                        m.on('click', () => showInfo(p, gType));
+                        if (p.name) m.bindPopup(`<b>${p.name}</b><br><span style="color:#8892a4;font-size:12px;">${p.amenity}</span>`);
+                        layers.amenity.addLayer(m);
+                    }
+                }
+            });
+        }
+
+        // Store listed features for index-based click reference
+        let listedFeatures = [];
+
+        function updateList(features) {
+            const list = document.getElementById('featureList');
+            const named = features.filter(f => f.properties.name && f.properties.name.trim());
+
+            // Sort: Point amenitas dulu, lalu Point lain, lalu Line/Polygon
+            const sorted = [...named].sort((a, b) => {
+                const scoreType = f => f.geometry.type === 'Point' ? (f.properties.amenity ? 0 : 1) : 2;
+                return scoreType(a) - scoreType(b);
+            });
+            listedFeatures = sorted.slice(0, 100);
+
+            if (listedFeatures.length === 0) {
+                list.innerHTML = '<div class="no-results">Tidak ada hasil ditemukan</div>';
+                document.getElementById('statTotal').textContent = 0;
+                return;
+            }
+
+            list.innerHTML = listedFeatures.map((f, i) => {
+                const p = f.properties;
+                const type = p.amenity || p.highway || p.building || p.osm_type || 'fitur';
+                const icon = p.amenity ? amenityIcon(p.amenity).options.html.replace(/<[^>]+>/g, '').trim() :
+                    f.geometry.type === 'Point' ? '📍' :
+                        f.geometry.type === 'LineString' ? '〰️' : '🏗️';
+                return `<div class="feature-item" id="fi-${i}" onclick="flyToFeature(${i})">
+      <div class="feature-name">${icon} ${p.name}</div>
+      <div class="feature-type">${type} · ${f.geometry.type}</div>
+    </div>`;
+            }).join('');
+            document.getElementById('statTotal').textContent = named.length;
+        }
+
+        // Marker highlight sementara
+        let highlightMarker = null;
+
+        function getCenter(geom) {
+            const type = geom.type;
+            const coords = geom.coordinates;
+            if (type === 'Point') {
+                return [coords[1], coords[0]];
+            } else if (type === 'LineString') {
+                const mid = Math.floor(coords.length / 2);
+                return [coords[mid][1], coords[mid][0]];
+            } else if (type === 'MultiLineString') {
+                const seg = coords[0];
+                const mid = Math.floor(seg.length / 2);
+                return [seg[mid][1], seg[mid][0]];
+            } else if (type === 'Polygon') {
+                const ring = coords[0];
+                return [
+                    ring.reduce((s, c) => s + c[1], 0) / ring.length,
+                    ring.reduce((s, c) => s + c[0], 0) / ring.length
+                ];
+            } else if (type === 'MultiPolygon') {
+                const ring = coords[0][0];
+                return [
+                    ring.reduce((s, c) => s + c[1], 0) / ring.length,
+                    ring.reduce((s, c) => s + c[0], 0) / ring.length
+                ];
+            }
+            return null;
+        }
+
+        function flyToFeature(index) {
+            const f = listedFeatures[index];
+            if (!f) return;
+
+            // Highlight list item
+            document.querySelectorAll('.feature-item').forEach(el => el.classList.remove('selected'));
+            const el = document.getElementById('fi-' + index);
+            if (el) {
+                el.classList.add('selected');
+                el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+
+            const center = getCenter(f.geometry);
+            if (!center) return;
+
+            const zoom = f.geometry.type === 'Point' ? 17 : 16;
+            map.flyTo(center, zoom, { duration: 1.0 });
+
+            // Hapus highlight lama
+            if (highlightMarker) map.removeLayer(highlightMarker);
+
+            // Buat pulsing highlight marker
+            const pulseIcon = L.divIcon({
+                className: '',
+                html: `<div style="
+      width:28px;height:28px;
+      background:rgba(230,57,70,0.25);
+      border:3px solid #e63946;
+      border-radius:50%;
+      box-shadow:0 0 0 0 rgba(230,57,70,0.6);
+      animation:pulse-ring 1.5s ease-out infinite;
+      position:relative;
+    "><div style="
+      position:absolute;top:50%;left:50%;
+      transform:translate(-50%,-50%);
+      width:8px;height:8px;
+      background:#e63946;
+      border-radius:50%;
+    "></div></div>`,
+                iconSize: [28, 28],
+                iconAnchor: [14, 14]
+            });
+
+            highlightMarker = L.marker(center, { icon: pulseIcon, zIndexOffset: 1000 }).addTo(map);
+
+            // Otomatis hilang setelah 4 detik
+            setTimeout(() => {
+                if (highlightMarker) { map.removeLayer(highlightMarker); highlightMarker = null; }
+            }, 4000);
+
+            // Tampilkan popup nama
+            const name = f.properties.name || '';
+            if (name) {
+                L.popup({ offset: [0, -8], className: 'feature-popup' })
+                    .setLatLng(center)
+                    .setContent(`<b>${name}</b>`)
+                    .openOn(map);
+            }
+
+            showInfo(f.properties, f.geometry.type);
+        }
+
+        function fitBounds() { map.flyTo([43.7384, 7.4246], 14, { duration: 1.2 }); }
+
+        function locateUser() {
+            map.locate({ setView: true, maxZoom: 16 });
+            map.on('locationfound', e => L.circle(e.latlng, { radius: e.accuracy, color: '#4fc3f7' }).addTo(map));
+        }
+
+        function toggleLayer(name, el) {
+            el.classList.toggle('on');
+            if (el.classList.contains('on')) map.addLayer(layers[name]);
+            else map.removeLayer(layers[name]);
+        }
+
+        function setBasemap(name, el) {
+            document.querySelectorAll('.bm-btn').forEach(b => b.classList.remove('active'));
+            el.classList.add('active');
+            Object.values(basemaps).forEach(b => map.removeLayer(b));
+            basemaps[name].addTo(map);
+            // bring layers back on top
+            Object.values(layers).forEach(l => l.bringToFront && l.bringToFront());
+        }
+
+        // SEARCH
+        document.getElementById('searchInput').addEventListener('input', function () {
+            searchTerm = this.value.toLowerCase();
+            filterAndRender();
+        });
+
+        // AMENITY CHIPS
+        document.querySelectorAll('.chip').forEach(c => {
+            c.addEventListener('click', function () {
+                document.querySelectorAll('.chip').forEach(x => x.classList.remove('active'));
+                this.classList.add('active');
+                activeAmenity = this.dataset.amenity;
+                filterAndRender();
+            });
+        });
+
+        function filterAndRender() {
+            let filtered = allFeatures;
+
+            if (searchTerm) {
+                filtered = filtered.filter(f => {
+                    const p = f.properties;
+                    return (p.name && p.name.toLowerCase().includes(searchTerm)) ||
+                        (p.amenity && p.amenity.toLowerCase().includes(searchTerm)) ||
+                        (p.highway && p.highway.toLowerCase().includes(searchTerm));
+                });
+            }
+
+            renderFeatures(filtered);
+            updateList(filtered);
+        }
+
+        // LOAD BOUNDARY
+        fetch('clipping_boundary.geojson')
+            .then(r => r.json())
+            .then(data => {
+                L.geoJSON(data, { style: { color: '#e63946', weight: 2.5, fillOpacity: 0, dashArray: '6,4', opacity: 0.8 } }).addTo(layers.boundary);
+            });
+
+        // START
+        loadGeoJSON();
+    </script>
+</body>
+
+</html>
