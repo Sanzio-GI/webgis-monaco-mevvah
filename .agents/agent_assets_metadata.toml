@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "FFSjBP2RGGnqTMdMMuumk"
+uri = "file://monaco-webgis-source.zip"
+type = "unspecified"
+title = "Monaco WebGIS — Source Code"
