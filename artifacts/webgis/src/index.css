@@ -460,6 +460,17 @@ body {
   animation: fadeIn 0.3s ease;
 }
 
+/* ── ROUTE ANIMATED FLOW ────────────────────────────── */
+.route-flow path {
+  animation: route-march 0.6s linear infinite;
+}
+@keyframes route-march {
+  to { stroke-dashoffset: -18; }
+}
+
+/* route stat card accent for cyan */
+.route-stat-val { color: #00d4ff !important; }
+
 /* ── CONTEXT MENU ───────────────────────────────────── */
 .ctx-menu {
   position: fixed;

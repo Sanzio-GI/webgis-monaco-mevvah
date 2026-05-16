@@ -165,6 +165,8 @@ export default function WebGIS() {
   const basemapRef  = useRef<Record<Basemap, L.TileLayer | null>>({ dark:null, osm:null, satellite:null, topo:null });
   const hlMarker    = useRef<L.Marker | null>(null);
   const routeLayerRef  = useRef<L.GeoJSON | null>(null);
+  const routeGlowRef   = useRef<L.GeoJSON | null>(null);
+  const routeFlowRef   = useRef<L.GeoJSON | null>(null);
   const startMarkerRef = useRef<L.Marker | null>(null);
   const endMarkerRef   = useRef<L.Marker | null>(null);
 
@@ -421,23 +423,38 @@ export default function WebGIS() {
     setRouteError(null);
     setRouteResult(null);
 
-    // clear old route layer
-    if (routeLayerRef.current) { mapRef.current.removeLayer(routeLayerRef.current); routeLayerRef.current=null; }
+    // clear old route layers
+    const map = mapRef.current;
+    if (routeGlowRef.current)  { map.removeLayer(routeGlowRef.current);  routeGlowRef.current=null; }
+    if (routeLayerRef.current) { map.removeLayer(routeLayerRef.current); routeLayerRef.current=null; }
+    if (routeFlowRef.current)  { map.removeLayer(routeFlowRef.current);  routeFlowRef.current=null; }
 
     try {
       const data = await fetchRoute(routeStart, routeEnd, routeProfile);
       if (!data) throw new Error('No route found');
       setRouteResult(data.result);
 
-      // draw route
+      // layer 1 — wide outer glow
+      const routeGlow = L.geoJSON(data.geojson, {
+        style: { color:'#00d4ff', weight:14, opacity:0.12, dashArray:'none' },
+      }).addTo(map);
+      routeGlowRef.current = routeGlow;
+
+      // layer 2 — solid route line
       const routeLine = L.geoJSON(data.geojson, {
-        style: { color:'#e63946', weight:4, opacity:0.85, dashArray:'none' },
-      }).addTo(mapRef.current);
+        style: { color:'#00d4ff', weight:4, opacity:0.92, dashArray:'none' },
+      }).addTo(map);
       routeLayerRef.current = routeLine;
+
+      // layer 3 — animated flowing dashes
+      const routeFlow = L.geoJSON(data.geojson, {
+        style: { color:'#ffffff', weight:2.5, opacity:0.75, dashArray:'10 8', className:'route-flow' },
+      }).addTo(map);
+      routeFlowRef.current = routeFlow;
 
       // fit bounds
       const bounds = routeLine.getBounds().pad(0.15);
-      mapRef.current.flyToBounds(bounds, { duration:1.2 });
+      map.flyToBounds(bounds, { duration:1.2 });
     } catch {
       setRouteError('Rute tidak ditemukan. Coba titik lain.');
     } finally {
@@ -451,7 +468,9 @@ export default function WebGIS() {
     setPickingPoint(null);
     const map = mapRef.current;
     if (!map) return;
+    if (routeGlowRef.current)   { map.removeLayer(routeGlowRef.current);   routeGlowRef.current=null; }
     if (routeLayerRef.current)  { map.removeLayer(routeLayerRef.current);  routeLayerRef.current=null; }
+    if (routeFlowRef.current)   { map.removeLayer(routeFlowRef.current);   routeFlowRef.current=null; }
     if (startMarkerRef.current) { map.removeLayer(startMarkerRef.current); startMarkerRef.current=null; }
     if (endMarkerRef.current)   { map.removeLayer(endMarkerRef.current);   endMarkerRef.current=null; }
   };
