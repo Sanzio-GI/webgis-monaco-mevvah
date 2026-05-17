@@ -399,16 +399,46 @@ export default function WebGIS() {
 
   // ── LOAD DATA ─────────────────────────────────────────────────────────────
   useEffect(() => {
+    async function fetchOverpass(): Promise<GeoFeature[]> {
+      const query = `[out:json][timeout:90];area[name="Monaco"][admin_level=2]->.a;(node(area.a);way(area.a););out geom;`;
+      const endpoints = [
+        'https://overpass-api.de/api/interpreter',
+        'https://overpass.kumi.systems/api/interpreter',
+      ];
+      for (const endpoint of endpoints) {
+        try {
+          const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `data=${encodeURIComponent(query)}`,
+            signal: AbortSignal.timeout(120000),
+          });
+          if (!res.ok) continue;
+          const json = await res.json();
+          const feats = convertOverpass(json.elements ?? []);
+          if (feats.length >= 10) return feats;
+        } catch { /* try next mirror */ }
+      }
+      throw new Error('overpass unavailable');
+    }
+
     async function load() {
       try {
-        const query = `[out:json][timeout:20];area[name="Monaco"][admin_level=2]->.a;(node(area.a);way(area.a););out geom;`;
-        const url   = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
-        const res   = await fetch(url, { signal: AbortSignal.timeout(12000) });
-        if (!res.ok) throw new Error('overpass fail');
-        const json  = await res.json();
-        const feats = convertOverpass(json.elements ?? []);
-        if (feats.length < 10) throw new Error('too few');
-        processFeatures(feats);
+        const bundled = await fetch(`${import.meta.env.BASE_URL}monaco.geojson`, {
+          signal: AbortSignal.timeout(60000),
+        });
+        if (bundled.ok) {
+          const data = await bundled.json();
+          const feats = (data.features ?? []) as GeoFeature[];
+          if (feats.length >= 10) {
+            processFeatures(feats);
+            return;
+          }
+        }
+      } catch { /* fall through to live Overpass */ }
+
+      try {
+        processFeatures(await fetchOverpass());
       } catch {
         processFeatures(DEMO_FEATURES);
       }
@@ -427,6 +457,13 @@ export default function WebGIS() {
       }
       if (el.type==='way' && Array.isArray(el.geometry)) {
         const coords = (el.geometry as {lat:number;lon:number}[]).map(g=>[g.lon,g.lat]);
+        const closed = coords.length > 3
+          && coords[0][0] === coords[coords.length - 1][0]
+          && coords[0][1] === coords[coords.length - 1][1];
+        const isArea = !!(p.building || p.landuse || p.leisure === 'pitch');
+        if (closed && isArea) {
+          return [{ type:'Feature', geometry:{type:'Polygon',coordinates:[coords]}, properties:p }];
+        }
         return [{ type:'Feature', geometry:{type:'LineString',coordinates:coords}, properties:p }];
       }
       return [];
