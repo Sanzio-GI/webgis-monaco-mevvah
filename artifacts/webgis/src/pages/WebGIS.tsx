@@ -12,8 +12,8 @@ type Basemap = 'dark' | 'osm' | 'satellite' | 'topo';
 type SideTab = 'explore' | 'route';
 type RouteProfile = 'driving' | 'walking' | 'cycling';
 
-interface RoutePoint { lat: number; lng: number; label: string; }
-interface RouteStep  { maneuver: string; name: string; distance: number; }
+interface RoutePoint  { lat: number; lng: number; label: string; }
+interface RouteStep  { maneuver: string; modifier?: string; name: string; distance: number; durationSec: number; }
 interface RouteResult { distanceKm: number; durationMin: number; steps: RouteStep[]; }
 
 // ── CONSTANTS ──────────────────────────────────────────────────────────────
@@ -26,20 +26,58 @@ const AMENITY_ICONS: Record<string, string> = {
   parking:'🅿️', fuel:'⛽', school:'🏫', university:'🎓', theatre:'🎭',
 };
 
-const MANEUVER_ICONS: Record<string, string> = {
-  turn:         '↩',
-  'new name':   '→',
-  depart:       '🚀',
-  arrive:       '🏁',
-  merge:        '⇉',
-  'on ramp':    '↗',
-  'off ramp':   '↘',
-  fork:         '⑂',
-  'end of road':'⤵',
-  roundabout:   '🔄',
-  rotary:       '🔄',
-  default:      '→',
-};
+// direction icon based on modifier (overrides maneuver-level icon)
+function dirIcon(maneuver: string, modifier?: string): string {
+  if (maneuver === 'depart')    return '🚀';
+  if (maneuver === 'arrive')    return '🏁';
+  if (maneuver === 'roundabout' || maneuver === 'rotary') return '🔄';
+  if (maneuver === 'merge')     return '⇉';
+  if (maneuver === 'fork')      return '⑂';
+  if (maneuver === 'on ramp')   return '↗';
+  if (maneuver === 'off ramp')  return '↘';
+  if (maneuver === 'end of road') return '⤵';
+  if (!modifier) return '↑';
+  const m = modifier.toLowerCase();
+  if (m === 'uturn')        return '↩';
+  if (m === 'sharp left')   return '↰';
+  if (m === 'left')         return '◀';
+  if (m === 'slight left')  return '↖';
+  if (m === 'straight')     return '↑';
+  if (m === 'slight right') return '↗';
+  if (m === 'right')        return '▶';
+  if (m === 'sharp right')  return '↱';
+  return '→';
+}
+
+// build human-readable Indonesian instruction
+function buildInstruction(step: RouteStep): string {
+  const n = step.name ? `di <b>${step.name}</b>` : '';
+  const m = (step.modifier ?? '').toLowerCase();
+  const dir = m === 'left' ? 'kiri' : m === 'right' ? 'kanan'
+    : m === 'slight left' ? 'sedikit ke kiri' : m === 'slight right' ? 'sedikit ke kanan'
+    : m === 'sharp left' ? 'tajam ke kiri' : m === 'sharp right' ? 'tajam ke kanan'
+    : m === 'straight' ? 'lurus' : '';
+
+  switch (step.maneuver) {
+    case 'depart':      return step.name ? `Mulai dari <b>${step.name}</b>` : 'Mulai perjalanan';
+    case 'arrive':      return 'Tiba di tujuan';
+    case 'roundabout':
+    case 'rotary':      return `Masuk bundaran${n ? ', lalu ambil jalan ' + n : ''}`;
+    case 'merge':       return `Gabung${n ? ' ke ' + n : ''}`;
+    case 'fork':        return `Di persimpangan, ambil arah ${dir || 'kanan'}${n ? ' ke ' + n : ''}`;
+    case 'on ramp':     return `Naik jalan layang${n ? ' ke ' + n : ''}`;
+    case 'off ramp':    return `Keluar${n ? ' ke ' + n : ''}`;
+    case 'end of road': return `Di ujung jalan, belok ${dir || 'kanan'}${n ? ' ke ' + n : ''}`;
+    case 'new name':    return `Lanjut${n ? ' ke ' + n : ' lurus'}`;
+    case 'continue':    return `Terus lurus${n ? ' di ' + n : ''}`;
+    case 'turn':
+    default:
+      if (step.maneuver === 'turn' || dir) {
+        return `Belok ${dir || 'kanan'}${n ? ' ke ' + n : ''}`;
+      }
+      return step.name ? `Menuju <b>${step.name}</b>` : 'Lanjutkan';
+  }
+}
 
 // ── DEMO DATA ──────────────────────────────────────────────────────────────
 const DEMO_FEATURES: GeoFeature[] = [
@@ -139,11 +177,16 @@ async function fetchRoute(
   if (data.code !== 'Ok' || !data.routes?.length) return null;
   const route = data.routes[0];
   const steps: RouteStep[] = (route.legs ?? []).flatMap((leg: Record<string, unknown>) =>
-    ((leg.steps ?? []) as Record<string, unknown>[]).map(s => ({
-      maneuver: String((s.maneuver as Record<string, unknown>)?.type ?? 'default'),
-      name: String(s.name || ''),
-      distance: Number(s.distance ?? 0),
-    }))
+    ((leg.steps ?? []) as Record<string, unknown>[]).map(s => {
+      const mnv = s.maneuver as Record<string, unknown>;
+      return {
+        maneuver:    String(mnv?.type     ?? 'default'),
+        modifier:    mnv?.modifier ? String(mnv.modifier) : undefined,
+        name:        String(s.name || ''),
+        distance:    Number(s.distance ?? 0),
+        durationSec: Number(s.duration ?? 0),
+      };
+    })
   );
   return {
     result: {
@@ -208,6 +251,7 @@ export default function WebGIS() {
   const [endQuery,      setEndQuery]      = useState('');
   const [showStartSug,  setShowStartSug]  = useState(false);
   const [showEndSug,    setShowEndSug]    = useState(false);
+  const [stepsOpen,     setStepsOpen]     = useState(true);
 
   // context menu
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; lat: number; lng: number } | null>(null);
@@ -977,24 +1021,45 @@ export default function WebGIS() {
                     <button className="route-clear-all" onClick={clearRoute}>🗑 Hapus Rute</button>
                   </div>
 
-                  <div className="route-steps">
-                    {routeResult.steps.filter(s=>s.maneuver!=='arrive'||routeResult.steps.indexOf(s)===routeResult.steps.length-1).map((step,i)=>(
-                      <div key={i} className="step-item">
-                        <div className="step-num">{MANEUVER_ICONS[step.maneuver]??'→'}</div>
-                        <div>
-                          <div className="step-text">
-                            {step.name ? <><strong style={{color:'#c9a84c'}}>{step.name}</strong></> : (
-                              step.maneuver==='depart' ? 'Mulai perjalanan' :
-                              step.maneuver==='arrive' ? 'Tiba di tujuan 🏁' :
-                              step.maneuver==='roundabout'||step.maneuver==='rotary' ? 'Masuk bundaran' :
-                              `Belok ${step.maneuver.replace(/-/g,' ')}`
-                            )}
-                          </div>
-                          {step.distance>0 && <div className="step-dist">{fmtDist(step.distance)}</div>}
-                        </div>
-                      </div>
-                    ))}
+                  {/* ── TURN-BY-TURN HEADER ── */}
+                  <div className="steps-header" onClick={() => setStepsOpen(o => !o)}>
+                    <span>🗺 Petunjuk Arah</span>
+                    <span className="steps-count">{routeResult.steps.length} langkah</span>
+                    <span className="steps-chevron">{stepsOpen ? '▲' : '▼'}</span>
                   </div>
+
+                  {stepsOpen && (
+                    <div className="route-steps">
+                      {routeResult.steps.map((step, i) => {
+                        const isLast   = i === routeResult.steps.length - 1;
+                        const isFirst  = i === 0;
+                        const icon     = dirIcon(step.maneuver, step.modifier);
+                        const instrRaw = buildInstruction(step);
+                        return (
+                          <div key={i} className={`step-item${isFirst ? ' step-first' : ''}${isLast ? ' step-last' : ''}`}>
+                            <div className={`step-icon-wrap${isFirst ? ' step-icon-depart' : isLast ? ' step-icon-arrive' : ''}`}>
+                              <span className="step-icon">{icon}</span>
+                              {!isLast && <div className="step-vline" />}
+                            </div>
+                            <div className="step-body">
+                              <div
+                                className="step-text"
+                                dangerouslySetInnerHTML={{ __html: instrRaw }}
+                              />
+                              <div className="step-meta">
+                                {step.distance > 0 && (
+                                  <span className="step-dist">{fmtDist(step.distance)}</span>
+                                )}
+                                {step.durationSec > 0 && (
+                                  <span className="step-dur">{fmtTime(step.durationSec)}</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </>
               )}
             </div>
