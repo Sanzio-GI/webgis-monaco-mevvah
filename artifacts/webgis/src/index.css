@@ -478,6 +478,31 @@ body {
 /* route stat card accent for cyan */
 .route-stat-val { color: #00d4ff !important; }
 
+/* ── ROUTE SUGGESTION DROPDOWN ─────────────────────── */
+.route-sug-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0; right: 0;
+  background: #10172a;
+  border: 1px solid rgba(201,168,76,0.2);
+  border-radius: 10px;
+  overflow: hidden;
+  z-index: 2000;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.55);
+  animation: fadeIn 0.15s ease;
+}
+.route-sug-dropdown .sug-item:hover { background: rgba(0,212,255,0.08); }
+
+.route-map-pick-btn {
+  background: rgba(0,212,255,0.08);
+  border: 1px solid rgba(0,212,255,0.2);
+  border-radius: 6px;
+  color: #00d4ff; font-size: 13px;
+  padding: 2px 6px; cursor: pointer;
+  transition: all 0.2s; flex-shrink: 0;
+}
+.route-map-pick-btn:hover { background: rgba(0,212,255,0.18); }
+
 /* ── CONTEXT MENU ───────────────────────────────────── */
 .ctx-menu {
   position: fixed;

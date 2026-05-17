@@ -203,6 +203,12 @@ export default function WebGIS() {
   const [pickingPoint,    setPickingPoint]   = useState<'start' | 'end' | null>(null);
   const pickingRef = useRef<'start' | 'end' | null>(null);
 
+  // route input text + suggestions
+  const [startQuery,    setStartQuery]    = useState('');
+  const [endQuery,      setEndQuery]      = useState('');
+  const [showStartSug,  setShowStartSug]  = useState(false);
+  const [showEndSug,    setShowEndSug]    = useState(false);
+
   // context menu
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; lat: number; lng: number } | null>(null);
 
@@ -518,12 +524,51 @@ export default function WebGIS() {
     setBasemapState(bm);
   };
 
+  // ── ROUTE SEARCH HELPERS ──────────────────────────────
+  const routeSuggestionsFor = (q: string) => {
+    const named = allFeatures.filter(f => f.properties.name && String(f.properties.name).trim());
+    if (!q.trim()) return named.slice(0, 7);
+    const t = q.toLowerCase();
+    return named.filter(f => String(f.properties.name).toLowerCase().includes(t)).slice(0, 7);
+  };
+
+  const applyRoutePoint = (which: 'start' | 'end', lat: number, lng: number, label: string) => {
+    const pt = { lat, lng, label };
+    if (which === 'start') {
+      setRouteStart(pt); setStartQuery(label); setShowStartSug(false);
+    } else {
+      setRouteEnd(pt); setEndQuery(label); setShowEndSug(false);
+    }
+    setRouteResult(null);
+    // fly to
+    if (mapRef.current) mapRef.current.flyTo([lat, lng], 16, { duration: 1.0 });
+  };
+
+  const selectRouteFeature = (which: 'start' | 'end', f: GeoFeature) => {
+    const center = getCenter(f.geometry);
+    if (!center) return;
+    applyRoutePoint(which, center[0], center[1], String(f.properties.name ?? ''));
+    if (f.properties.name && mapRef.current) {
+      L.popup({ offset:[0,-8] }).setLatLng(center)
+        .setContent(`<b>${f.properties.name}</b>`).openOn(mapRef.current);
+    }
+  };
+
+  // keep text inputs in sync when points are set via map-click / ctx-menu
+  useEffect(() => {
+    if (routeStart) setStartQuery(routeStart.label);
+  }, [routeStart]);
+  useEffect(() => {
+    if (routeEnd) setEndQuery(routeEnd.label);
+  }, [routeEnd]);
+
   // ── CONTEXT MENU ACTIONS ─────────────────────────────
   const ctxSetStart = () => {
     if (!ctxMenu) return;
     const { lat, lng } = ctxMenu;
     const label = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     setRouteStart({ lat, lng, label });
+    setStartQuery(label);
     setRouteResult(null);
     setSideTab('route');
     setCtxMenu(null);
@@ -534,6 +579,7 @@ export default function WebGIS() {
     const { lat, lng } = ctxMenu;
     const label = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     setRouteEnd({ lat, lng, label });
+    setEndQuery(label);
     setRouteResult(null);
     setSideTab('route');
     setCtxMenu(null);
@@ -779,41 +825,90 @@ export default function WebGIS() {
               <div className="route-section">
                 <div className="section-title" style={{ marginBottom:12 }}>📍 Titik Rute</div>
                 <div className="route-input-group">
-                  {/* start */}
-                  <div className={`route-input-row${routeStart?' set':''}`}>
-                    <div className="route-dot" style={{ background:'#22c55e' }} />
-                    <input
-                      readOnly
-                      placeholder="Klik 'Pilih' lalu klik peta…"
-                      value={routeStart?.label ?? ''}
-                    />
-                    {routeStart ? (
-                      <button className="route-clear-btn" onClick={()=>{ setRouteStart(null); setRouteResult(null); if(startMarkerRef.current&&mapRef.current){mapRef.current.removeLayer(startMarkerRef.current);startMarkerRef.current=null;} }}>✕</button>
-                    ) : (
-                      <button className="route-clear-btn" style={{ color:'#4fc3f7', fontSize:11, fontWeight:600, whiteSpace:'nowrap' }}
-                        onClick={()=>setPickingPoint(p=>p==='start'?null:'start')}>
-                        {pickingPoint==='start'?'✕ Batal':'Pilih'}
-                      </button>
+
+                  {/* ── START INPUT ── */}
+                  <div style={{ position:'relative' }}>
+                    <div className={`route-input-row${routeStart?' set':''}`}>
+                      <div className="route-dot" style={{ background:'#22c55e' }} />
+                      <input
+                        type="text"
+                        placeholder="Ketik nama tempat awal…"
+                        value={startQuery}
+                        onChange={e => { setStartQuery(e.target.value); setRouteStart(null); setShowStartSug(true); }}
+                        onFocus={() => setShowStartSug(true)}
+                        onBlur={() => setTimeout(() => setShowStartSug(false), 200)}
+                        autoComplete="off"
+                      />
+                      {(routeStart || startQuery) ? (
+                        <button className="route-clear-btn" onClick={() => {
+                          setRouteStart(null); setStartQuery(''); setShowStartSug(false); setRouteResult(null);
+                          if (startMarkerRef.current && mapRef.current) { mapRef.current.removeLayer(startMarkerRef.current); startMarkerRef.current=null; }
+                        }}>✕</button>
+                      ) : (
+                        <button className="route-map-pick-btn"
+                          onClick={() => setPickingPoint(p => p==='start' ? null : 'start')}
+                          title="Klik titik di peta">
+                          {pickingPoint==='start' ? '✕' : '🗺'}
+                        </button>
+                      )}
+                    </div>
+                    {showStartSug && (
+                      <div className="route-sug-dropdown">
+                        <div className="sug-section-label">🇲🇨 Tempat di Monaco</div>
+                        {routeSuggestionsFor(startQuery).map((f, i) => (
+                          <div key={i} className="sug-item" onMouseDown={() => selectRouteFeature('start', f)}>
+                            <span className="sug-icon">{featureIcon(f)}</span>
+                            <div>
+                              <div className="sug-main">{String(f.properties.name)}</div>
+                              <div className="sug-sub">{featureSubtype(f)}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
 
                   <div className="route-connector"><div className="route-line-v" /></div>
 
-                  {/* end */}
-                  <div className={`route-input-row${routeEnd?' set':''}`}>
-                    <div className="route-dot" style={{ background:'#e63946' }} />
-                    <input
-                      readOnly
-                      placeholder="Klik 'Pilih' lalu klik peta…"
-                      value={routeEnd?.label ?? ''}
-                    />
-                    {routeEnd ? (
-                      <button className="route-clear-btn" onClick={()=>{ setRouteEnd(null); setRouteResult(null); if(endMarkerRef.current&&mapRef.current){mapRef.current.removeLayer(endMarkerRef.current);endMarkerRef.current=null;} }}>✕</button>
-                    ) : (
-                      <button className="route-clear-btn" style={{ color:'#4fc3f7', fontSize:11, fontWeight:600, whiteSpace:'nowrap' }}
-                        onClick={()=>setPickingPoint(p=>p==='end'?null:'end')}>
-                        {pickingPoint==='end'?'✕ Batal':'Pilih'}
-                      </button>
+                  {/* ── END INPUT ── */}
+                  <div style={{ position:'relative' }}>
+                    <div className={`route-input-row${routeEnd?' set':''}`}>
+                      <div className="route-dot" style={{ background:'#e63946' }} />
+                      <input
+                        type="text"
+                        placeholder="Ketik nama tempat tujuan…"
+                        value={endQuery}
+                        onChange={e => { setEndQuery(e.target.value); setRouteEnd(null); setShowEndSug(true); }}
+                        onFocus={() => setShowEndSug(true)}
+                        onBlur={() => setTimeout(() => setShowEndSug(false), 200)}
+                        autoComplete="off"
+                      />
+                      {(routeEnd || endQuery) ? (
+                        <button className="route-clear-btn" onClick={() => {
+                          setRouteEnd(null); setEndQuery(''); setShowEndSug(false); setRouteResult(null);
+                          if (endMarkerRef.current && mapRef.current) { mapRef.current.removeLayer(endMarkerRef.current); endMarkerRef.current=null; }
+                        }}>✕</button>
+                      ) : (
+                        <button className="route-map-pick-btn"
+                          onClick={() => setPickingPoint(p => p==='end' ? null : 'end')}
+                          title="Klik titik di peta">
+                          {pickingPoint==='end' ? '✕' : '🗺'}
+                        </button>
+                      )}
+                    </div>
+                    {showEndSug && (
+                      <div className="route-sug-dropdown">
+                        <div className="sug-section-label">🇲🇨 Tempat di Monaco</div>
+                        {routeSuggestionsFor(endQuery).map((f, i) => (
+                          <div key={i} className="sug-item" onMouseDown={() => selectRouteFeature('end', f)}>
+                            <span className="sug-icon">{featureIcon(f)}</span>
+                            <div>
+                              <div className="sug-main">{String(f.properties.name)}</div>
+                              <div className="sug-sub">{featureSubtype(f)}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -832,7 +927,7 @@ export default function WebGIS() {
                 </button>
 
                 {!routeStart && !routeEnd && (
-                  <div className="route-hint">Klik tombol "Pilih" lalu klik titik di peta</div>
+                  <div className="route-hint">Ketik nama tempat atau klik 🗺 lalu klik peta</div>
                 )}
 
                 {routeError && (
