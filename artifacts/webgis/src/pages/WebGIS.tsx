@@ -924,7 +924,8 @@ export default function WebGIS() {
                 <div className="filter-chips">
                   {[['all','Semua'],['restaurant','🍽️ Resto'],['cafe','☕ Kafe'],
                     ['bar','🍺 Bar'],['hospital','🏥 RS'],
-                    ['place_of_worship','⛪ Ibadah']].map(([val,label])=>(
+                    ['place_of_worship','⛪ Ibadah'],['parking','🅿️ Parkir'],
+                    ['fuel','⛽ SPBU']].map(([val,label])=>(
                     <div key={val} className={`chip${activeAmenity===val?' active':''}`}
                       onClick={()=>setActiveAmenity(val)}>{label}</div>
                   ))}
