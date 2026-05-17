@@ -868,7 +868,20 @@ export default function WebGIS() {
                     )}
                   </div>
 
-                  <div className="route-connector"><div className="route-line-v" /></div>
+                  <div className="route-connector">
+                    <div className="route-line-v" />
+                    <button
+                      className="route-swap-btn"
+                      title="Tukar titik mulai & tujuan"
+                      onClick={() => {
+                        const tmpPt = routeStart; const tmpQ = startQuery;
+                        setRouteStart(routeEnd); setStartQuery(endQuery);
+                        setRouteEnd(tmpPt);   setEndQuery(tmpQ);
+                        setRouteResult(null);
+                      }}
+                    >⇅</button>
+                    <div className="route-line-v" />
+                  </div>
 
                   {/* ── END INPUT ── */}
                   <div style={{ position:'relative' }}>

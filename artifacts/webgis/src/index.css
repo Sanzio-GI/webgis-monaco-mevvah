@@ -503,6 +503,25 @@ body {
 }
 .route-map-pick-btn:hover { background: rgba(0,212,255,0.18); }
 
+.route-swap-btn {
+  position: absolute;
+  left: 50%; transform: translateX(-50%);
+  background: #10172a;
+  border: 1px solid rgba(201,168,76,0.35);
+  border-radius: 50%;
+  width: 26px; height: 26px;
+  color: #c9a84c; font-size: 14px;
+  cursor: pointer; display: flex;
+  align-items: center; justify-content: center;
+  transition: all 0.2s; z-index: 1;
+  padding: 0;
+}
+.route-swap-btn:hover {
+  background: rgba(201,168,76,0.15);
+  border-color: #c9a84c;
+  transform: translateX(-50%) scale(1.15);
+}
+
 /* ── CONTEXT MENU ───────────────────────────────────── */
 .ctx-menu {
   position: fixed;
