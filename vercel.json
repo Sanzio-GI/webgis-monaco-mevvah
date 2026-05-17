@@ -4,6 +4,12 @@
   "installCommand": "pnpm install",
   "framework": "vite",
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
+  "build": {
+    "env": {
+      "PORT": "26061",
+      "BASE_PATH": "/"
+    }
+  },
   "env": {
     "PORT": "26061",
     "BASE_PATH": "/"
