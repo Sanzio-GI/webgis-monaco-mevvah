@@ -205,6 +205,7 @@ async function fetchRoute(
 
 // ── MAIN COMPONENT ─────────────────────────────────────────────────────────
 export default function WebGIS() {
+  const audioRef    = useRef<HTMLAudioElement | null>(null);
   const mapRef      = useRef<L.Map | null>(null);
   const roadsRef    = useRef<L.LayerGroup | null>(null);
   const buildRef    = useRef<L.LayerGroup | null>(null);
@@ -259,6 +260,8 @@ export default function WebGIS() {
   const [stepsOpen,     setStepsOpen]     = useState(true);
   const [shareToast,    setShareToast]    = useState(false);
   const [favToast,      setFavToast]      = useState(false);
+  const [musicPlaying,  setMusicPlaying]  = useState(false);
+  const [volume,        setVolume]        = useState(0.4);
   const [favorites,     setFavorites]     = useState<FavoriteRoute[]>(loadFavs);
   const [favsOpen,      setFavsOpen]      = useState(true);
   const pendingCalcRef  = useRef(false);
@@ -270,6 +273,27 @@ export default function WebGIS() {
 
   // keep pickingRef in sync
   useEffect(() => { pickingRef.current = pickingPoint; }, [pickingPoint]);
+
+  // ── AUDIO INIT ───────────────────────────────────────────────────────────
+  useEffect(() => {
+    const audio = new Audio('/monaco-jazz.mp3');
+    audio.loop   = true;
+    audio.volume = volume;
+    audioRef.current = audio;
+    return () => { audio.pause(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = volume;
+  }, [volume]);
+
+  const toggleMusic = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (musicPlaying) { audio.pause(); setMusicPlaying(false); }
+    else { audio.play().catch(() => {}); setMusicPlaying(true); }
+  };
 
   // close context menu on any outside click / Escape
   useEffect(() => {
@@ -1223,6 +1247,23 @@ export default function WebGIS() {
               ✅ Link rute disalin ke clipboard!
             </div>
           )}
+
+          {/* ── FLOATING MUSIC PLAYER ── */}
+          <div className="music-player">
+            <button className={`music-play-btn${musicPlaying ? ' playing' : ''}`} onClick={toggleMusic} title={musicPlaying ? 'Pause musik' : 'Putar musik'}>
+              {musicPlaying ? '⏸' : '▶'}
+            </button>
+            <div className="music-info">
+              <div className={`music-title${musicPlaying ? ' scrolling' : ''}`}>🎷 Monaco Jazz</div>
+              <div className="music-vol-row">
+                <button className="music-vol-btn" onClick={() => setVolume(v => Math.max(0, +(v - 0.1).toFixed(1)))} title="Kecilkan volume">🔉</button>
+                <div className="music-vol-bar">
+                  <div className="music-vol-fill" style={{ width: `${volume * 100}%` }} />
+                </div>
+                <button className="music-vol-btn" onClick={() => setVolume(v => Math.min(1, +(v + 0.1).toFixed(1)))} title="Besarkan volume">🔊</button>
+              </div>
+            </div>
+          </div>
 
           {/* favorite saved toast */}
           {favToast && (

@@ -575,6 +575,75 @@ body {
 }
 .fav-del-btn:hover { background: rgba(230,57,70,0.2); }
 
+/* ── FLOATING MUSIC PLAYER ── */
+.music-player {
+  position: absolute;
+  bottom: 24px; right: 16px;
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(10,14,26,0.88);
+  border: 1px solid rgba(201,168,76,0.3);
+  border-radius: 14px;
+  padding: 8px 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5), 0 0 12px rgba(201,168,76,0.08);
+  z-index: 1100; backdrop-filter: blur(10px);
+  min-width: 180px;
+}
+.music-play-btn {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: rgba(201,168,76,0.12);
+  border: 1.5px solid rgba(201,168,76,0.4);
+  color: #c9a84c; font-size: 14px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: all 0.2s;
+}
+.music-play-btn:hover { background: rgba(201,168,76,0.22); transform: scale(1.08); }
+.music-play-btn.playing {
+  background: rgba(201,168,76,0.22);
+  border-color: #c9a84c;
+  animation: musicPulse 1.8s ease-in-out infinite;
+}
+@keyframes musicPulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(201,168,76,0.35); }
+  50%      { box-shadow: 0 0 0 6px rgba(201,168,76,0); }
+}
+.music-info { flex: 1; min-width: 0; }
+.music-title {
+  font-size: 11px; font-weight: 700; color: #c9a84c;
+  letter-spacing: 0.3px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+  margin-bottom: 5px;
+}
+.music-title.scrolling {
+  animation: musicScroll 8s linear infinite;
+  display: inline-block;
+}
+@keyframes musicScroll {
+  0%   { transform: translateX(0%); }
+  40%  { transform: translateX(-30%); }
+  60%  { transform: translateX(-30%); }
+  100% { transform: translateX(0%); }
+}
+.music-vol-row {
+  display: flex; align-items: center; gap: 5px;
+}
+.music-vol-btn {
+  background: none; border: none;
+  font-size: 13px; cursor: pointer; padding: 0;
+  line-height: 1; transition: transform 0.15s;
+  flex-shrink: 0;
+}
+.music-vol-btn:hover { transform: scale(1.2); }
+.music-vol-bar {
+  flex: 1; height: 4px; border-radius: 2px;
+  background: rgba(255,255,255,0.1);
+  overflow: hidden;
+}
+.music-vol-fill {
+  height: 100%; border-radius: 2px;
+  background: linear-gradient(90deg, #c9a84c, #e8c96a);
+  transition: width 0.2s ease;
+}
+
 /* ── SHARE TOAST ── */
 .share-toast {
   position: absolute;
