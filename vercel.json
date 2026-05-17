@@ -1,0 +1,11 @@
+{
+  "buildCommand": "pnpm --filter @workspace/webgis run build",
+  "outputDirectory": "artifacts/webgis/dist/public",
+  "installCommand": "pnpm install",
+  "framework": "vite",
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
+  "env": {
+    "PORT": "26061",
+    "BASE_PATH": "/"
+  }
+}

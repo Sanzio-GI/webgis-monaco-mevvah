@@ -578,7 +578,7 @@ body {
 /* ── FLOATING MUSIC PLAYER ── */
 .music-player {
   position: absolute;
-  bottom: 24px; right: 16px;
+  bottom: 72px; right: 16px;
   display: flex; align-items: center; gap: 10px;
   background: rgba(10,14,26,0.88);
   border: 1px solid rgba(201,168,76,0.3);
