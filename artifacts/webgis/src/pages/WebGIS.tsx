@@ -252,6 +252,8 @@ export default function WebGIS() {
   const [showStartSug,  setShowStartSug]  = useState(false);
   const [showEndSug,    setShowEndSug]    = useState(false);
   const [stepsOpen,     setStepsOpen]     = useState(true);
+  const [shareToast,    setShareToast]    = useState(false);
+  const pendingCalcRef  = useRef(false);
 
   // context menu
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; lat: number; lng: number } | null>(null);
@@ -269,6 +271,36 @@ export default function WebGIS() {
     window.addEventListener('keydown', onKey);
     return () => { window.removeEventListener('click', close); window.removeEventListener('keydown', onKey); };
   }, []);
+
+  // ── RESTORE ROUTE FROM URL PARAMS ────────────────────────────────────────
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    const fLat = p.get('from_lat'), fLng = p.get('from_lng'), fName = p.get('from_name');
+    const tLat = p.get('to_lat'),   tLng = p.get('to_lng'),   tName = p.get('to_name');
+    const mode = p.get('mode') as RouteProfile | null;
+    if (fLat && fLng && tLat && tLng) {
+      const start: RoutePoint = { lat: +fLat, lng: +fLng, label: fName ?? `${(+fLat).toFixed(5)},${(+fLng).toFixed(5)}` };
+      const end:   RoutePoint = { lat: +tLat, lng: +tLng, label: tName ?? `${(+tLat).toFixed(5)},${(+tLng).toFixed(5)}` };
+      setRouteStart(start);
+      setRouteEnd(end);
+      setStartQuery(start.label);
+      setEndQuery(end.label);
+      if (mode) setRouteProfile(mode);
+      setSideTab('route');
+      pendingCalcRef.current = true;
+    }
+  }, []);
+
+  // auto-calc when map + both points are ready (triggered from URL restore)
+  useEffect(() => {
+    if (!pendingCalcRef.current || !routeStart || !routeEnd) return;
+    if (!mapRef.current) return;
+    pendingCalcRef.current = false;
+    // short delay so map finishes tile load
+    const t = setTimeout(() => calcRoute(), 800);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeStart, routeEnd]);
 
   // ── MAP INIT ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -510,6 +542,30 @@ export default function WebGIS() {
     } finally {
       setRouteLoading(false);
     }
+  };
+
+  // ── SHARE ROUTE ──────────────────────────────────────────────────────────
+  const shareRoute = async () => {
+    if (!routeStart || !routeEnd) return;
+    const base = window.location.origin + window.location.pathname;
+    const p = new URLSearchParams({
+      from_lat:  String(routeStart.lat),
+      from_lng:  String(routeStart.lng),
+      from_name: routeStart.label,
+      to_lat:    String(routeEnd.lat),
+      to_lng:    String(routeEnd.lng),
+      to_name:   routeEnd.label,
+      mode:      routeProfile,
+    });
+    const url = `${base}?${p.toString()}`;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      window.prompt('Salin link rute ini:', url);
+      return;
+    }
+    setShareToast(true);
+    setTimeout(() => setShareToast(false), 2500);
   };
 
   const clearRoute = () => {
@@ -1018,7 +1074,10 @@ export default function WebGIS() {
                         <div className="route-stat-label">langkah</div>
                       </div>
                     </div>
-                    <button className="route-clear-all" onClick={clearRoute}>🗑 Hapus Rute</button>
+                    <div className="route-action-row">
+                      <button className="route-share-btn" onClick={shareRoute}>📤 Bagikan</button>
+                      <button className="route-clear-all" onClick={clearRoute}>🗑 Hapus</button>
+                    </div>
                   </div>
 
                   {/* ── TURN-BY-TURN HEADER ── */}
@@ -1069,6 +1128,13 @@ export default function WebGIS() {
         {/* ── MAP ── */}
         <div className="map-area">
           <div id="map" />
+
+          {/* share toast */}
+          {shareToast && (
+            <div className="share-toast">
+              ✅ Link rute disalin ke clipboard!
+            </div>
+          )}
 
           {/* right-click context menu */}
           {ctxMenu && (
