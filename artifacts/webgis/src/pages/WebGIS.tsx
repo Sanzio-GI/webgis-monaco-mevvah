@@ -226,7 +226,7 @@ export default function WebGIS() {
   const [activeAmenity,   setActiveAmenity]  = useState('all');
   const [selectedIdx,     setSelectedIdx]    = useState<number | null>(null);
   const [infoProps,       setInfoProps]      = useState<{ props: Props; geomType: string } | null>(null);
-  const [layerOn,         setLayerOn]        = useState({ roads:true, buildings:true, amenity:true, boundary:true });
+  const [layerOn,         setLayerOn]        = useState({ roads:true, buildings:true, amenity:true });
   const [basemap,         setBasemapState]   = useState<Basemap>('dark');
   const [totalFeatures,   setTotalFeatures]  = useState(0);
   const [filterStats,     setFilterStats]    = useState({ building:0, highway:0, amenity:0 });
@@ -923,7 +923,7 @@ export default function WebGIS() {
                 <div className="section-title">Filter Amenitas</div>
                 <div className="filter-chips">
                   {[['all','Semua'],['restaurant','🍽️ Resto'],['cafe','☕ Kafe'],
-                    ['bar','🍺 Bar'],['hotel','🏨 Hotel'],['hospital','🏥 RS'],
+                    ['bar','🍺 Bar'],['hospital','🏥 RS'],
                     ['place_of_worship','⛪ Ibadah']].map(([val,label])=>(
                     <div key={val} className={`chip${activeAmenity===val?' active':''}`}
                       onClick={()=>setActiveAmenity(val)}>{label}</div>
@@ -934,9 +934,9 @@ export default function WebGIS() {
               {/* layer toggles */}
               <div className="layer-section">
                 <div className="section-title">Layer Peta</div>
-                {(['roads','buildings','amenity','boundary'] as (keyof typeof layerOn)[]).map((key,i)=>{
-                  const colors=['#e63946','#c9a84c','#4fc3f7','#81c784'];
-                  const names=['Jalan & Jalur','Bangunan','Amenitas','Batas Wilayah'];
+                {(['roads','buildings','amenity'] as (keyof typeof layerOn)[]).map((key,i)=>{
+                  const colors=['#e63946','#c9a84c','#4fc3f7'];
+                  const names=['Jalan & Jalur','Bangunan','Amenitas'];
                   return (
                     <div key={key} className="layer-item" onClick={()=>toggleLayer(key)}>
                       <div className="layer-left">
