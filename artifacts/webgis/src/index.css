@@ -511,6 +511,70 @@ body {
 }
 .route-clear-all:hover { background: rgba(230,57,70,0.15); }
 
+/* ── FAVORITE ROUTES ── */
+.route-fav-btn {
+  flex: 1; padding: 8px;
+  background: rgba(201,168,76,0.08); border: 1px solid rgba(201,168,76,0.25);
+  border-radius: 8px; color: #c9a84c; font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all 0.2s;
+}
+.route-fav-btn:hover { background: rgba(201,168,76,0.18); border-color: #c9a84c; }
+
+.fav-section {
+  margin: 0 12px 8px;
+  border: 1px solid rgba(201,168,76,0.15);
+  border-radius: 10px; overflow: hidden;
+}
+.fav-header {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 12px; cursor: pointer;
+  background: rgba(201,168,76,0.06);
+  font-size: 12px; font-weight: 600; color: #c9a84c;
+  user-select: none; transition: background 0.2s;
+}
+.fav-header:hover { background: rgba(201,168,76,0.12); }
+.fav-count {
+  margin-left: auto;
+  background: rgba(201,168,76,0.18);
+  color: #c9a84c; font-size: 10px; font-weight: 700;
+  padding: 1px 7px; border-radius: 20px;
+}
+.fav-list { padding: 6px 0; }
+.fav-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  transition: background 0.15s;
+}
+.fav-item:last-child { border-bottom: none; }
+.fav-item:hover { background: rgba(201,168,76,0.05); }
+.fav-mode-icon { font-size: 16px; flex-shrink: 0; }
+.fav-info { flex: 1; min-width: 0; }
+.fav-from, .fav-to {
+  font-size: 11px; color: #b8c4d0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.fav-from { color: #22c55e; }
+.fav-to   { color: #e63946; }
+.fav-arrow { font-size: 9px; color: #4a5568; line-height: 1; margin: 1px 0; }
+.fav-actions { display: flex; gap: 5px; flex-shrink: 0; }
+.fav-load-btn {
+  background: rgba(0,212,255,0.1); border: 1px solid rgba(0,212,255,0.25);
+  border-radius: 5px; color: #00d4ff; font-size: 11px;
+  width: 24px; height: 24px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s;
+}
+.fav-load-btn:hover { background: rgba(0,212,255,0.22); }
+.fav-del-btn {
+  background: rgba(230,57,70,0.08); border: 1px solid rgba(230,57,70,0.2);
+  border-radius: 5px; color: #e63946; font-size: 10px;
+  width: 24px; height: 24px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s;
+}
+.fav-del-btn:hover { background: rgba(230,57,70,0.2); }
+
 /* ── SHARE TOAST ── */
 .share-toast {
   position: absolute;

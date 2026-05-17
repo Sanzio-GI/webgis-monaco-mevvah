@@ -15,6 +15,11 @@ type RouteProfile = 'driving' | 'walking' | 'cycling';
 interface RoutePoint  { lat: number; lng: number; label: string; }
 interface RouteStep  { maneuver: string; modifier?: string; name: string; distance: number; durationSec: number; }
 interface RouteResult { distanceKm: number; durationMin: number; steps: RouteStep[]; }
+interface FavoriteRoute { id: string; name: string; start: RoutePoint; end: RoutePoint; mode: RouteProfile; savedAt: number; }
+
+const FAV_KEY = 'monaco_fav_routes';
+const loadFavs = (): FavoriteRoute[] => { try { return JSON.parse(localStorage.getItem(FAV_KEY) ?? '[]'); } catch { return []; } };
+const saveFavs = (favs: FavoriteRoute[]) => localStorage.setItem(FAV_KEY, JSON.stringify(favs));
 
 // ── CONSTANTS ──────────────────────────────────────────────────────────────
 const MONACO_CENTER: L.LatLngTuple = [43.7384, 7.4246];
@@ -253,6 +258,9 @@ export default function WebGIS() {
   const [showEndSug,    setShowEndSug]    = useState(false);
   const [stepsOpen,     setStepsOpen]     = useState(true);
   const [shareToast,    setShareToast]    = useState(false);
+  const [favToast,      setFavToast]      = useState(false);
+  const [favorites,     setFavorites]     = useState<FavoriteRoute[]>(loadFavs);
+  const [favsOpen,      setFavsOpen]      = useState(true);
   const pendingCalcRef  = useRef(false);
 
   // context menu
@@ -542,6 +550,45 @@ export default function WebGIS() {
     } finally {
       setRouteLoading(false);
     }
+  };
+
+  // ── FAVORITE ROUTES ──────────────────────────────────────────────────────
+  const saveAsFavorite = () => {
+    if (!routeStart || !routeEnd) return;
+    const from = routeStart.label.slice(0, 22);
+    const to   = routeEnd.label.slice(0, 22);
+    const name = `${from} → ${to}`;
+    const entry: FavoriteRoute = {
+      id: Date.now().toString(),
+      name,
+      start: routeStart,
+      end: routeEnd,
+      mode: routeProfile,
+      savedAt: Date.now(),
+    };
+    const next = [entry, ...favorites].slice(0, 10);
+    setFavorites(next);
+    saveFavs(next);
+    setFavToast(true);
+    setTimeout(() => setFavToast(false), 2200);
+  };
+
+  const loadFavorite = (fav: FavoriteRoute) => {
+    setRouteStart(fav.start); setStartQuery(fav.start.label);
+    setRouteEnd(fav.end);     setEndQuery(fav.end.label);
+    setRouteProfile(fav.mode);
+    setRouteResult(null);
+    pendingCalcRef.current = true;
+    // trigger auto-calc via a small state nudge
+    setTimeout(() => {
+      if (mapRef.current) calcRoute();
+    }, 200);
+  };
+
+  const deleteFavorite = (id: string) => {
+    const next = favorites.filter(f => f.id !== id);
+    setFavorites(next);
+    saveFavs(next);
   };
 
   // ── SHARE ROUTE ──────────────────────────────────────────────────────────
@@ -1048,6 +1095,45 @@ export default function WebGIS() {
                 )}
               </div>
 
+              {/* ── FAVORIT RUTE ── */}
+              {favorites.length > 0 && (
+                <div className="fav-section">
+                  <div className="fav-header" onClick={() => setFavsOpen(o => !o)}>
+                    <span>⭐ Rute Favorit</span>
+                    <span className="fav-count">{favorites.length}</span>
+                    <span className="steps-chevron">{favsOpen ? '▲' : '▼'}</span>
+                  </div>
+                  {favsOpen && (
+                    <div className="fav-list">
+                      {favorites.map(fav => (
+                        <div key={fav.id} className="fav-item">
+                          <div className="fav-mode-icon">
+                            {fav.mode === 'driving' ? '🚗' : fav.mode === 'walking' ? '🚶' : '🚴'}
+                          </div>
+                          <div className="fav-info">
+                            <div className="fav-from">{fav.start.label}</div>
+                            <div className="fav-arrow">↓</div>
+                            <div className="fav-to">{fav.end.label}</div>
+                          </div>
+                          <div className="fav-actions">
+                            <button
+                              className="fav-load-btn"
+                              onClick={() => loadFavorite(fav)}
+                              title="Muat rute ini"
+                            >▶</button>
+                            <button
+                              className="fav-del-btn"
+                              onClick={() => deleteFavorite(fav.id)}
+                              title="Hapus favorit"
+                            >✕</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* loading */}
               {routeLoading && (
                 <div className="route-loading">
@@ -1075,6 +1161,7 @@ export default function WebGIS() {
                       </div>
                     </div>
                     <div className="route-action-row">
+                      <button className="route-fav-btn" onClick={saveAsFavorite} title="Simpan ke favorit">⭐ Simpan</button>
                       <button className="route-share-btn" onClick={shareRoute}>📤 Bagikan</button>
                       <button className="route-clear-all" onClick={clearRoute}>🗑 Hapus</button>
                     </div>
@@ -1133,6 +1220,13 @@ export default function WebGIS() {
           {shareToast && (
             <div className="share-toast">
               ✅ Link rute disalin ke clipboard!
+            </div>
+          )}
+
+          {/* favorite saved toast */}
+          {favToast && (
+            <div className="share-toast" style={{ borderColor:'rgba(201,168,76,0.5)', color:'#c9a84c', boxShadow:'0 4px 20px rgba(201,168,76,0.2)', bottom: 68 }}>
+              ⭐ Rute disimpan ke favorit!
             </div>
           )}
 
