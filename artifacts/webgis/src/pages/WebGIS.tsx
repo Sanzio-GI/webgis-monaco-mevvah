@@ -127,15 +127,15 @@ function buildingStyle(): L.PathOptions {
 function amenityIcon(type: string): L.DivIcon {
   const emoji = AMENITY_ICONS[type] ?? '📌';
   return L.divIcon({
-    className:'',
-    html:`<div style="font-size:18px;text-align:center;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));">${emoji}</div>`,
+    className: 'amenity-div-icon',
+    html: `<span class="amenity-emoji" aria-hidden="true">${emoji}</span>`,
     iconSize:[24,24], iconAnchor:[12,12],
   });
 }
 
 function pinIcon(color: string, emoji: string): L.DivIcon {
   return L.divIcon({
-    className:'',
+    className: 'route-pin-icon',
     html:`<div style="position:relative;width:32px;height:40px;">
       <div style="width:32px;height:32px;border-radius:50% 50% 50% 0;background:${color};transform:rotate(-45deg);border:2px solid rgba(255,255,255,0.6);box-shadow:0 3px 10px rgba(0,0,0,0.5);"></div>
       <div style="position:absolute;top:5px;left:50%;transform:translateX(-50%);font-size:13px;line-height:1;">${emoji}</div>
@@ -490,7 +490,8 @@ export default function WebGIS() {
 
     features.forEach(f => {
       const p=f.properties, gt=f.geometry.type;
-      if (p.highway && !['bus_stop','crossing','give_way','traffic_signals'].includes(String(p.highway))) {
+      const isLine = gt === 'LineString' || gt === 'MultiLineString';
+      if (p.highway && isLine && !['bus_stop','crossing','give_way','traffic_signals'].includes(String(p.highway))) {
         const line = L.geoJSON(f as GeoJSON.Feature, { style:()=>roadStyle(p) });
         line.on('click', ()=>setInfoProps({ props:p, geomType:gt }));
         roads.addLayer(line);
@@ -699,7 +700,7 @@ export default function WebGIS() {
     mapRef.current.flyTo(center, f.geometry.type==='Point'?17:16, { duration:1.0 });
     if (hlMarker.current) { mapRef.current.removeLayer(hlMarker.current); hlMarker.current=null; }
     const pulse = L.divIcon({
-      className:'',
+      className: 'highlight-pulse-icon',
       html:`<div style="width:28px;height:28px;background:rgba(230,57,70,0.25);border:3px solid #e63946;border-radius:50%;animation:pulse-ring 1.5s ease-out infinite;position:relative;"><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:8px;height:8px;background:#e63946;border-radius:50%;"></div></div>`,
       iconSize:[28,28], iconAnchor:[14,14],
     });

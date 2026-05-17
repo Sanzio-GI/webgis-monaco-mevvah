@@ -2,6 +2,20 @@
 @import "leaflet.markercluster/dist/MarkerCluster.css";
 @import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 
+/* Leaflet divIcon markers — no default pin image */
+.leaflet-div-icon {
+  background: transparent !important;
+  border: none !important;
+}
+.amenity-div-icon .amenity-emoji {
+  display: block;
+  font-size: 18px;
+  line-height: 1;
+  text-align: center;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+  pointer-events: none;
+}
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
